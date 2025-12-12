@@ -1,0 +1,169 @@
+// Prisma schema for Education Goma backend
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums (if needed in future) can be added here
+
+model Tenant {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  phone           String    @unique // WhatsApp RDC (+243...)
+  email           String?
+  commune         String? // Goma/Karisimbi/Mugunga/Nyiragongo/Other
+  type            String? // private/conventionned/community/public
+  status          String    @default("pending") // pending/active/rejected/suspended
+  validationCode  String? // Code SMS 6 chiffres
+  isPhoneVerified Boolean   @default(false)
+  rejectionReason String?
+  validatedAt     DateTime?
+  validatedBy     String?
+  domain          String? // Optionnel maintenant
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  users         User[]
+  roles         Role[]
+  tenantModules TenantModule[]
+  accessLogs    AccessLog[]
+  tenantLogs    TenantLog[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  tenantId  String
+  email     String?  @unique
+  phone     String?  @unique
+  password  String
+  firstName String?
+  lastName  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  userRoles     UserRole[]
+  accessLogs    AccessLog[]
+  refreshTokens RefreshToken[]
+}
+
+model Role {
+  id       String @id @default(cuid())
+  tenantId String
+  name     String
+
+  // Relations
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+}
+
+model Permission {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
+  // Relations
+  rolePermissions RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model Module {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  description String?
+
+  // Relations
+  tenantModules TenantModule[]
+}
+
+model TenantModule {
+  tenantId  String
+  moduleId  String
+  isEnabled Boolean @default(false)
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  module Module @relation(fields: [moduleId], references: [id])
+
+  @@id([tenantId, moduleId])
+  @@index([moduleId])
+}
+
+model AccessLog {
+  id        String   @id @default(cuid())
+  userId    String
+  tenantId  String
+  action    String
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tenantId  String
+  tokenHash String   @unique
+  userAgent String?
+  isRevoked Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+
+model TenantLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  action    String // registered, phone_verified, validated, rejected, suspended
+  ip        String?
+  userAgent String?
+  metadata  String? // JSON string for additional data
+  createdAt DateTime @default(now())
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
