@@ -1,4 +1,5 @@
 import { Controller, Post, Get, Body, Req, Res, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -6,6 +7,7 @@ import { RegisterDto } from './dto/register.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { Public } from './decorators/auth.decorators';
 import { CurrentUserId } from './decorators/user.decorator';
+import { env } from '../../config/env';
 
 @Controller('auth')
 export class AuthController {
@@ -14,6 +16,7 @@ export class AuthController {
   @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: { limit: env.AUTH_REGISTER_LIMIT, ttl: env.AUTH_REGISTER_TTL } })
   async register(
     @Body() dto: RegisterDto,
     @Req() req: Request,
@@ -33,6 +36,7 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: env.AUTH_LOGIN_LIMIT, ttl: env.AUTH_LOGIN_TTL } })
   async login(
     @Body() dto: LoginDto,
     @Req() req: Request,

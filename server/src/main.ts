@@ -38,21 +38,13 @@ async function configureApp(app: INestApplication) {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule); // Activer le logger
+  console.log('Starting bootstrap...');
+  const app = await NestFactory.create(AppModule);
   await configureApp(app);
   
   const port = Number(env.PORT) || 4000;
-  await app.listen(port);
-  console.log(` Server listening on http://localhost:${port}`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`Server listening on http://localhost:${port}`);
 }
 
-// Export for Vite
-export const viteNodeApp = NestFactory.create(AppModule, { logger: false }).then(async (app) => {
-  await configureApp(app);
-  return app;
-});
-
-// Only run bootstrap if executed directly (not imported by Vite)
-if (require.main === module) {
-  bootstrap();
-}
+bootstrap();
