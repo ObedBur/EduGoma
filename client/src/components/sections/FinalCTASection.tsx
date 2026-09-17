@@ -1,7 +1,8 @@
 "use client";
+import Link from "next/link";
 
 import React, { useState } from "react";
-import { Button } from "../ui/Button";
+import { Button } from "../ui/button";
 import { DemoRequestModal } from "../ui/DemoRequestModal";
 
 const CTA_CONTENT = {
@@ -41,7 +42,7 @@ export function FinalCTASection() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 {/* Bouton principal — ouvre la modal */}
                 <Button
-                  variant="white"
+                  variant="default"
                   size="lg"
                   className="w-full sm:w-auto font-bold text-brand-primary"
                   onClick={() => setIsModalOpen(true)}
@@ -50,8 +51,9 @@ export function FinalCTASection() {
                 </Button>
 
                 {/* Bouton secondaire — ancre vers l'inscription (à brancher plus tard) */}
-                <Button variant="outline-light" size="lg" href="/login" className="w-full sm:w-auto">
+                <Button variant="outline" size="lg" asChild><Link href="/login" className="w-full sm:w-auto">
                   {CTA_CONTENT.buttonSecondary}
+                </Link>
                 </Button>
               </div>
             </div>

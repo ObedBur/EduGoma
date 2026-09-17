@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition, useEffect, useRef } from "react";
 import { X, Loader2, CheckCircle2, AlertCircle, Phone, Building2, User, Mail, Users, MessageSquare } from "lucide-react";
-import { Button } from "../ui/Button";
+import { Button } from "../ui/button";
 import { submitDemoRequest } from "../../app/actions/demo";
 
 interface DemoRequestModalProps {
@@ -366,7 +366,7 @@ function SuccessState({ onClose }: { onClose: () => void }) {
           dans les <strong>24 heures</strong> pour organiser votre démonstration.
         </p>
       </div>
-      <Button variant="primary" size="lg" onClick={onClose}>
+      <Button variant="default" size="lg" onClick={onClose}>
         Parfait, merci !
       </Button>
     </div>
