@@ -8,14 +8,14 @@ interface StepItemProps {
 
 export function StepItem({ number, title, description }: StepItemProps) {
   return (
-    <div className="flex flex-col pl-6 py-2 border-l-2 border-gray-200 hover:border-brand-primary transition-colors h-full">
-      <span className="font-mono text-sm font-bold text-brand-primary mb-3">
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-brand-secondary/30 hover:shadow-lg">
+      <span className="mb-6 flex h-8 w-8 items-center justify-center rounded-lg bg-brand-secondary/10 font-mono text-xs font-bold text-brand-secondary">
         {number}
       </span>
-      <h3 className="text-lg font-bold text-gray-900 mb-2 leading-tight">
+      <h3 className="mb-2 text-lg font-bold leading-tight text-brand-primary">
         {title}
       </h3>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm leading-relaxed text-slate-600">
         {description}
       </p>
     </div>

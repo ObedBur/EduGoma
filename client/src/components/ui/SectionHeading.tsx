@@ -1,5 +1,3 @@
-import React from "react";
-
 interface SectionHeadingProps {
   eyebrow: string;
   title: string;
@@ -9,40 +7,17 @@ interface SectionHeadingProps {
   className?: string;
 }
 
-export function SectionHeading({
-  eyebrow,
-  title,
-  description,
-  align = "center",
-  ordinal,
-  className = "",
-}: SectionHeadingProps) {
+export function SectionHeading({ eyebrow, title, description, align = "center", ordinal, className = "" }: SectionHeadingProps) {
   const isLeft = align === "left";
 
   return (
-    <div
-      className={`flex flex-col ${
-        isLeft ? "text-left items-start" : "text-center items-center"
-      } ${className}`}
-    >
-      <div className="flex items-center gap-4 mb-3">
-        {isLeft && ordinal && (
-          <span className="text-4xl font-bold text-gray-200">{ordinal}</span>
-        )}
-        <span className="text-sm font-semibold uppercase tracking-wider text-brand-primary">
-          {eyebrow}
-        </span>
+    <div className={`flex flex-col ${isLeft ? "items-start text-left" : "items-center text-center"} ${className}`}>
+      <div className="mb-4 flex items-center gap-3">
+        {isLeft && ordinal && <span className="font-mono text-sm font-bold tracking-widest text-brand-accent">{ordinal}</span>}
+        <span className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.18em] text-brand-secondary"><span className="h-1.5 w-1.5 rounded-full bg-brand-accent" />{eyebrow}</span>
       </div>
-      
-      <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4 tracking-tight">
-        {title}
-      </h2>
-      
-      {description && (
-        <p className={`text-lg text-gray-600 max-w-2xl ${isLeft ? "" : "mx-auto"}`}>
-          {description}
-        </p>
-      )}
+      <h2 className="mb-4 max-w-3xl text-3xl font-extrabold leading-tight tracking-[-0.03em] text-brand-primary md:text-4xl">{title}</h2>
+      {description && <p className={`max-w-2xl text-lg leading-relaxed text-slate-600 ${isLeft ? "" : "mx-auto"}`}>{description}</p>}
     </div>
   );
 }

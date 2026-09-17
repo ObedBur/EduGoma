@@ -43,17 +43,17 @@ const SECTION_HEADER = {
 
 export function WhyChooseSection() {
   return (
-    <section id="pourquoi" className="py-20 md:py-28 bg-blue-50/50">
+    <section id="pourquoi" className="bg-brand-primary py-20 md:py-28">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <SectionHeading 
           align="center"
           eyebrow={SECTION_HEADER.eyebrow}
-          title={SECTION_HEADER.title} 
-          className="mb-16"
+          title={SECTION_HEADER.title}
+          className="mb-14 [&_h2]:text-white [&_span]:text-brand-accent [&_p]:text-white/70"
         />
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 bg-gray-200 border border-gray-200 gap-px rounded-2xl overflow-hidden shadow-sm">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((feat, idx) => (
             <FeatureCard
               key={idx}

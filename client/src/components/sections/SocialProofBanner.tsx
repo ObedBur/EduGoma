@@ -13,9 +13,9 @@ const SOCIAL_CONTENT = {
 
 export function SocialProofBanner() {
   return (
-    <section className="py-12 bg-white">
+    <section id="ecoles-pilotes" className="bg-white py-14 md:py-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-brand-primary/5 border border-brand-primary/10 rounded-2xl p-6 md:p-8 flex flex-col lg:flex-row items-center justify-between gap-8">
+        <div className="flex flex-col items-center justify-between gap-8 rounded-3xl border border-brand-secondary/15 bg-gradient-to-br from-brand-secondary/10 via-white to-brand-accent/10 p-6 shadow-sm md:p-8 lg:flex-row">
           
           <div className="flex items-start gap-4 lg:max-w-md">
             <div className="w-12 h-12 bg-brand-primary text-white rounded-full flex items-center justify-center shrink-0 shadow-sm">

@@ -39,15 +39,15 @@ const CHALLENGES = [
 
 export function ChallengesSection() {
   return (
-    <section id="defis" className="py-16 md:py-24 bg-white">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="defis" className="relative overflow-hidden bg-white py-20 md:py-28">
+      <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         
         <SectionHeading 
           align="left" 
           ordinal="01" 
           eyebrow="Le constat" 
           title="Les défis de la gestion scolaire traditionnelle" 
-          className="mb-12"
+          className="mb-12 max-w-2xl"
         />
         
         <div className="flex flex-col">
