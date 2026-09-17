@@ -17,24 +17,24 @@ export function FinalCTASection() {
 
   return (
     <>
-      <section id="cta" className="py-16 md:py-24 bg-white">
+      <section id="cta" className="bg-white py-20 md:py-28">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-brand-primary rounded-3xl p-10 md:p-16 text-center shadow-xl relative overflow-hidden">
+          <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-brand-primary via-[#183b78] to-brand-secondary p-8 text-center shadow-2xl shadow-brand-primary/20 md:p-16">
 
             {/* Decorative elements */}
             <div className="absolute top-0 right-0 -mt-16 -mr-16 w-64 h-64 bg-white/10 rounded-full blur-2xl" />
             <div className="absolute bottom-0 left-0 -mb-16 -ml-16 w-48 h-48 bg-brand-accent/20 rounded-full blur-2xl" />
 
             <div className="relative z-10">
-              <span className="inline-block py-1 px-3 rounded-full bg-white/10 text-white/90 text-sm font-semibold mb-6 tracking-wide uppercase">
+              <span className="mb-6 inline-block rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-brand-accent">
                 {CTA_CONTENT.eyebrow}
               </span>
 
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 tracking-tight max-w-2xl mx-auto">
+              <h2 className="mx-auto mb-6 max-w-2xl text-3xl font-extrabold tracking-tight text-white md:text-5xl">
                 {CTA_CONTENT.title}
               </h2>
 
-              <p className="text-lg text-white/80 mb-10 max-w-xl mx-auto">
+              <p className="mx-auto mb-10 max-w-xl text-lg text-white/75">
                 {CTA_CONTENT.description}
               </p>
 
@@ -50,7 +50,7 @@ export function FinalCTASection() {
                 </Button>
 
                 {/* Bouton secondaire — ancre vers l'inscription (à brancher plus tard) */}
-                <Button variant="outline-light" size="lg" href="#" className="w-full sm:w-auto">
+                <Button variant="outline-light" size="lg" href="/login" className="w-full sm:w-auto">
                   {CTA_CONTENT.buttonSecondary}
                 </Button>
               </div>

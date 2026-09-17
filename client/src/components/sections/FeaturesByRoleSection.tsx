@@ -90,12 +90,12 @@ const ROLES = [
 
 export function FeaturesByRoleSection() {
   return (
-    <section id="fonctionnalites" className="pt-24 pb-8 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
+    <section id="fonctionnalites" className="bg-white pb-8 pt-24">
+      <div className="mx-auto mb-14 max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionHeading 
           align="center"
           eyebrow="Une plateforme, quatre points de vue" 
-          title="Toutes les fonctionnalités, pensées pour chaque rôle" 
+          title="Chaque rôle avance avec les bons outils" description="Une même source de vérité pour la direction, l'administration, les enseignants et les familles." 
         />
       </div>
       

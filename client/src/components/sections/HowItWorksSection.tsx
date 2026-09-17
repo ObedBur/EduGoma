@@ -27,7 +27,7 @@ const STEPS = [
 
 export function HowItWorksSection() {
   return (
-    <section className="py-16 md:py-24 bg-gray-50 border-t border-gray-200">
+    <section id="comment-ca-marche" className="border-t border-slate-200/70 bg-surface-muted py-20 md:py-28">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <SectionHeading 
@@ -35,10 +35,10 @@ export function HowItWorksSection() {
           ordinal="02" 
           eyebrow="Le parcours" 
           title="Comment EduGoma transforme votre gestion" 
-          className="mb-16 max-w-2xl"
+          className="mb-14 max-w-2xl"
         />
         
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {STEPS.map((step, idx) => (
             <StepItem
               key={idx}

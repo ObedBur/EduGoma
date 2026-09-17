@@ -20,8 +20,8 @@ export function ChallengeCard({
 }: ChallengeCardProps) {
   return (
     <div
-      className={`flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 p-6 border-b border-gray-200 border-dashed last:border-b-0 ${
-        highlighted ? "bg-brand-primary text-white rounded-xl border-none" : "bg-transparent text-gray-900"
+      className={`flex flex-col items-start gap-4 rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:flex-row sm:items-center sm:gap-6 ${
+        highlighted ? "border-brand-primary bg-brand-primary text-white shadow-xl shadow-brand-primary/15" : "border-slate-200/80 bg-white text-gray-900"
       }`}
     >
       <div className={`font-mono text-lg font-bold shrink-0 ${highlighted ? "text-white/80" : "text-gray-400"}`}>

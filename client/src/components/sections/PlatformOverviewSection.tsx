@@ -15,19 +15,19 @@ const CATEGORIES = [
 
 export function PlatformOverviewSection() {
   return (
-    <section id="pour-qui" className="py-16 md:py-24 bg-gray-50 border-y border-gray-200">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="pour-qui" className="border-y border-slate-200/70 bg-surface-muted py-20 md:py-28">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         
         <SectionHeading 
           align="center"
           eyebrow="Vue d'ensemble" 
           title="Une plateforme centralisée pour tout votre établissement" 
-          className="mb-16"
+          className="mb-14 max-w-2xl mx-auto"
         />
         
-        <div className="flex flex-wrap justify-center gap-6 sm:gap-10">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
           {CATEGORIES.map((cat, idx) => (
-            <div key={idx} className="flex flex-col items-center gap-3 w-28 sm:w-32 group">
+            <div key={idx} className="group flex flex-col items-center gap-3 rounded-2xl border border-white/80 bg-white/75 px-3 py-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
               <div className="transition-transform duration-300 group-hover:-translate-y-2 group-hover:shadow-lg rounded-xl">
                 <IconBadge 
                   icon={cat.icon} 
@@ -35,7 +35,7 @@ export function PlatformOverviewSection() {
                   size="lg" 
                 />
               </div>
-              <span className="text-sm font-semibold text-gray-700 text-center">
+              <span className="text-center text-sm font-bold text-brand-primary">
                 {cat.label}
               </span>
             </div>

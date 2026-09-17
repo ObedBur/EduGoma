@@ -50,8 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem(TOKEN_KEY);
     if (!stored) {
-      setIsLoading(false);
-      return;
+      const timer = window.setTimeout(() => setIsLoading(false), 0);
+      return () => window.clearTimeout(timer);
     }
 
     authApi

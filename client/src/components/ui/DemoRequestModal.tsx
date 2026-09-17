@@ -54,13 +54,17 @@ export function DemoRequestModal({ isOpen, onClose }: DemoRequestModalProps) {
 
   // Focus sur le 1er champ à l'ouverture
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => firstInputRef.current?.focus(), 100);
+    if (!isOpen) return;
+
+    const timer = window.setTimeout(() => {
       setForm(INITIAL_FORM);
       setFieldErrors({});
       setServerError(null);
       setIsSuccess(false);
-    }
+      firstInputRef.current?.focus();
+    }, 100);
+
+    return () => window.clearTimeout(timer);
   }, [isOpen]);
 
   // Fermeture avec Échap
