@@ -90,13 +90,26 @@ const ROLES = [
 
 export function FeaturesByRoleSection() {
   return (
-    <section id="fonctionnalites" className="bg-white pb-8 pt-24">
+    <section id="fonctionnalites" className="bg-white pb-0 pt-20 md:pt-24">
       <div className="mx-auto mb-14 max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading 
-          align="center"
-          eyebrow="Une plateforme, quatre points de vue" 
-          title="Chaque rôle avance avec les bons outils" description="Une même source de vérité pour la direction, l'administration, les enseignants et les familles." 
-        />
+        <div className="overflow-hidden rounded-[2rem] bg-brand-primary p-7 shadow-2xl shadow-brand-primary/15 md:p-10">
+          <div className="grid items-end gap-8 lg:grid-cols-[1.25fr_0.75fr]">
+            <SectionHeading
+              align="left"
+              eyebrow="Une plateforme, quatre points de vue"
+              title="Les mêmes données. Des décisions plus rapides."
+              description="Direction, administration, enseignants et familles travaillent enfin dans le même espace, avec les réalités d'une école congolaise en tête."
+              className="[&_h2]:text-white [&_p]:text-white/70 [&_span]:text-brand-accent"
+            />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
+              {["Direction", "Administration", "Enseignants", "Familles"].map((role) => (
+                <div key={role} className="rounded-xl border border-white/10 bg-white/10 px-3 py-3 text-xs font-bold text-white/80">
+                  {role}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
       
       <div className="flex flex-col">
