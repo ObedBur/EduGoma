@@ -1,0 +1,27 @@
+# Dependances
+node_modules/
+.bun/
+bun.lock
+
+# Next.js (client)
+client/.next/
+client/out/
+
+# Build / Outputs
+dist/
+build/
+
+# Variables d'environnement
+.env
+.env.local
+.env.*.local
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
