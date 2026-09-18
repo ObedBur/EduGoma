@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition, useEffect, useRef } from "react";
 import { X, Loader2, CheckCircle2, AlertCircle, Phone, Building2, User, Mail, Users, MessageSquare } from "lucide-react";
-import { Button } from "../ui/button";
+import { Button } from "./button";
 import { submitDemoRequest } from "../../app/actions/demo";
 
 interface DemoRequestModalProps {
