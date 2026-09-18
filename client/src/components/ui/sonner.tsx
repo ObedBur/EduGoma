@@ -9,7 +9,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
-      className="toaster group"
+      className="toaster group font-[var(--font-geist-sans,sans-serif)]"
       position="bottom-right"
       expand={false}
       closeButton
@@ -17,7 +17,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         duration: 4000,
         classNames: {
-          toaster: "font-[var(--font-geist-sans,sans-serif)]",
           toast: [
             "group toast",
             "!rounded-xl !border !border-[#dce4ec]",

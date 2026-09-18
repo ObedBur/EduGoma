@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 interface ApiResponse<T = unknown> {
   success: boolean;
@@ -86,5 +86,17 @@ export const authApi = {
   me: (token: string) =>
     request<User>(`/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  forgotPassword: (payload: { email?: string; phone?: string }) =>
+    request<{ message: string }>(`/auth/forgot-password`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  resetPassword: (payload: { token: string; newPassword: string }) =>
+    request<{ message: string }>(`/auth/reset-password`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 };

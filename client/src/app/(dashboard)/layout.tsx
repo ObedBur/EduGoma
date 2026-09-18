@@ -41,26 +41,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="h-screen overflow-hidden bg-[#f5f8fb] text-[#23394e] flex">
       {/* Mobile backdrop — fond flouté avec transition */}
       <div
-        className={`fixed inset-0 z-30 lg:hidden transition-all duration-300 ${
-          menuOpen
+        className={`fixed inset-0 z-30 lg:hidden transition-all duration-300 ${menuOpen
             ? "bg-[#102d48]/30 backdrop-blur-sm pointer-events-auto"
             : "bg-transparent pointer-events-none"
-        }`}
+          }`}
         onClick={() => setMenuOpen(false)}
         aria-hidden="true"
       />
 
-      <DashboardSidebar 
-        collapsed={!menuOpen} 
+      <DashboardSidebar
+        collapsed={!menuOpen}
         desktopCollapsed={desktopCollapsed}
-        onClose={() => setMenuOpen(false)} 
+        onClose={() => setMenuOpen(false)}
       />
 
       {/* Colonne droite : occupe tout l'espace restant et ne scroll pas */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Topbar fixe en haut */}
-        <DashboardTopbar 
-          onMenu={() => setMenuOpen(true)} 
+        <DashboardTopbar
+          onMenu={() => setMenuOpen(true)}
           desktopCollapsed={desktopCollapsed}
           onToggleDesktop={toggleDesktop}
         />
