@@ -73,3 +73,65 @@ export function validateRateLimitTtl(name: string, value: string | undefined, de
   }
   return parsed;
 }
+
+export function validateHttpsUrl(name: string, value: string | undefined, isProduction: boolean): string {
+  if (!value) {
+    throw new Error(`Configuration error: ${name} is required but not set`);
+  }
+  try {
+    const url = new URL(value);
+    if (isProduction && url.protocol !== 'https:') {
+      throw new Error(`Configuration error: ${name} must use HTTPS in production`);
+    }
+    return value;
+  } catch (e) {
+    if (e instanceof Error && e.message.includes('Configuration error')) throw e;
+    throw new Error(`Configuration error: ${name} must be a valid URL`);
+  }
+}
+
+export function validateLockoutConfig(name: string, value: string | undefined, defaultValue: number): number {
+  if (!value) return defaultValue;
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed) || parsed <= 0) {
+    throw new Error(`Configuration error: ${name} must be a positive integer`);
+  }
+  return parsed;
+}
+
+export function validateTokenExpiry(name: string, value: string | undefined, defaultValue: number): number {
+  if (!value) return defaultValue;
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed) || parsed <= 0) {
+    throw new Error(`Configuration error: ${name} must be a positive integer (seconds)`);
+  }
+  return parsed;
+}
+
+export function validateMonitorThreshold(name: string, value: string | undefined, defaultValue: number): number {
+  if (!value) return defaultValue;
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed) || parsed <= 0) {
+    throw new Error(`Configuration error: ${name} must be a positive integer`);
+  }
+  return parsed;
+}
+
+export function validateBrevoConfig(name: string, value: string | undefined, isProduction: boolean): string {
+  if (!value) {
+    if (isProduction) {
+      throw new Error(`Configuration error: ${name} is required in production`);
+    }
+    return '';
+  }
+  return value;
+}
+
+export function validatePasswordHistoryLimit(name: string, value: string | undefined, defaultValue: number): number {
+  if (!value) return defaultValue;
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed) || parsed < 0) {
+    throw new Error(`Configuration error: ${name} must be a non-negative integer`);
+  }
+  return parsed;
+}

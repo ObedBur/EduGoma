@@ -19,8 +19,6 @@ model Tenant {
   commune         String? // Goma/Karisimbi/Mugunga/Nyiragongo/Other
   type            String? // private/conventionned/community/public
   status          String    @default("pending") // pending/active/rejected/suspended
-  validationCode  String? // Code SMS 6 chiffres
-  isPhoneVerified Boolean   @default(false)
   rejectionReason String?
   validatedAt     DateTime?
   validatedBy     String?
@@ -49,10 +47,13 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  tenant        Tenant         @relation(fields: [tenantId], references: [id])
-  userRoles     UserRole[]
-  accessLogs    AccessLog[]
-  refreshTokens RefreshToken[]
+  tenant                Tenant                @relation(fields: [tenantId], references: [id])
+  userRoles             UserRole[]
+  accessLogs            AccessLog[]
+  refreshTokens         RefreshToken[]
+  loginAttempts         LoginAttempt[]
+  passwordResetTokens   PasswordResetToken[]
+  passwordHistory       PasswordHistory[]
 }
 
 model Role {
@@ -122,17 +123,25 @@ model TenantModule {
 }
 
 model AccessLog {
-  id        String   @id @default(cuid())
-  userId    String
-  tenantId  String
-  action    String
-  ip        String?
-  userAgent String?
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  userId       String
+  tenantId     String
+  action       String
+  resourceType String?   // e.g., 'TENANT', 'USER', 'ROLE', 'PERMISSION', 'SYSTEM'
+  resourceId   String?   // ID of the affected resource
+  ip           String?
+  userAgent    String?
+  metadata     String?   // JSON string for additional data (no sensitive info)
+  createdAt    DateTime @default(now())
 
   // Relations
   user   User   @relation(fields: [userId], references: [id])
   tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([action])
+  @@index([resourceType, resourceId])
 }
 
 model RefreshToken {
@@ -150,6 +159,53 @@ model RefreshToken {
 
   @@index([userId])
   @@index([tokenHash])
+}
+
+model LoginAttempt {
+  id           String   @id @default(cuid())
+  userId       String
+  tenantId     String
+  success      Boolean  @default(false)
+  ip           String?
+  userAgent    String?
+  lockedUntil  DateTime?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model PasswordResetToken {
+  id           String   @id @default(cuid())
+  userId       String
+  tenantId     String
+  tokenHash    String   @unique
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+
+model PasswordHistory {
+  id            String   @id @default(cuid())
+  userId        String
+  tenantId      String
+  passwordHash  String
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model TenantLog {

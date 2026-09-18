@@ -26,7 +26,6 @@ async function main() {
       commune: faker.helpers.arrayElement(COMMUNES),
       type: 'private',
       status: 'active',
-      isPhoneVerified: true,
       domain: 'itg.educationgoma.com',
     },
   });
@@ -195,7 +194,7 @@ async function main() {
           commune: faker.helpers.arrayElement(COMMUNES),
           type: faker.helpers.arrayElement(SCHOOL_TYPES),
           status: faker.helpers.arrayElement(['pending', 'active', 'pending']),
-          isPhoneVerified: faker.datatype.boolean({ probability: 0.6 }),
+          
         },
       });
     }),

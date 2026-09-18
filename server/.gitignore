@@ -1,14 +1,20 @@
+# Server .gitignore - NestJS Backend
+
 # Dependencies
 node_modules/
+
+# Build / Outputs
 dist/
 build/
+*.tsbuildinfo
 
-# Environment
+# Environment files (never commit secrets)
 .env
 .env.local
 .env.*.local
+.env.*
 
-# IDE
+# IDE / Editors
 .vscode/
 .idea/
 *.swp
@@ -41,10 +47,26 @@ coverage/
 
 # Temporary files
 *.tmp
-get-verification-code.js
+*.temp
+*.bak
+*.backup
 
 # Backup files
-*.backup
 pnpm-lock.yaml.*
 package.json.*
 
+# Local development
+.env
+.env.local
+.env.*.local
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

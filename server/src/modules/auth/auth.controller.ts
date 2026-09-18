@@ -5,8 +5,12 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { Public } from './decorators/auth.decorators';
 import { CurrentUserId } from './decorators/user.decorator';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { env } from '../../config/env';
 
 @Controller('auth')
@@ -48,11 +52,15 @@ export class AuthController {
     const { accessToken, refreshToken, user } = await this.authService.login(dto, ip, userAgent);
 
     // Stockage du token de rafraîchissement en cookie HTTP-only
+    const isProd = env.NODE_ENV === 'production';
+    const rememberMe = dto.rememberMe === true;
+    const maxAge = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProd,
       sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge,
       path: '/',
     });
 
@@ -74,14 +82,17 @@ export class AuthController {
     const ip = req.ip ?? req.socket.remoteAddress;
     const userAgent = req.get('user-agent') ?? 'unknown';
     const refreshToken = req.cookies?.refreshToken ?? dto?.refreshToken;
+    const rememberMe = dto?.rememberMe === true;
 
-    const { accessToken, refreshToken: newRefreshToken, user } = await this.authService.refresh(refreshToken, ip, userAgent);
+    const { accessToken, refreshToken: newRefreshToken, user } = await this.authService.refresh(refreshToken, ip, userAgent, rememberMe);
 
+    const isProd = env.NODE_ENV === 'production';
+    const maxAge = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
     res.cookie('refreshToken', newRefreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProd,
       sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge,
       path: '/',
     });
 
@@ -105,9 +116,10 @@ export class AuthController {
 
     await this.authService.logout(refreshToken, ip, userAgent);
 
+    const isProd = env.NODE_ENV === 'production';
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProd,
       sameSite: 'strict',
       path: '/',
     });
@@ -136,6 +148,64 @@ export class AuthController {
         tenantId: user.tenantId,
         roles: user.userRoles?.map((ur: any) => ur.role.name) ?? [],
       },
+    };
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: env.AUTH_FORGOT_PASSWORD_LIMIT, ttl: env.AUTH_FORGOT_PASSWORD_TTL } })
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+    @Req() req: Request,
+  ) {
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    const result = await this.authService.forgotPassword(dto, ip, userAgent);
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: env.AUTH_RESET_PASSWORD_LIMIT, ttl: env.AUTH_RESET_PASSWORD_TTL } })
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+    @Req() req: Request,
+  ) {
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    const result = await this.authService.resetPassword(dto, ip, userAgent);
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: env.AUTH_CHANGE_PASSWORD_LIMIT, ttl: env.AUTH_CHANGE_PASSWORD_TTL } })
+  async changePassword(
+    @Body() dto: ChangePasswordDto,
+    @CurrentUserId() userId: string,
+    @Req() req: Request,
+  ) {
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    const result = await this.authService.changePassword(userId, dto, ip, userAgent);
+
+    return {
+      success: true,
+      ...result,
     };
   }
 }

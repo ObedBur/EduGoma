@@ -9,6 +9,7 @@ import { RbacModule } from './modules/rbac/rbac.module';
 import { AccessLogModule } from './modules/access-log/accesslog.module';
 import { DemoRequestModule } from './modules/demo-request/demo-request.module';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { MonitoringModule } from './modules/monitoring/monitoring.module';
 
 import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 import { TenantMiddleware } from './common/middlewares/tenant.middleware';
@@ -27,6 +28,7 @@ import { TenantMiddleware } from './common/middlewares/tenant.middleware';
     RbacModule,
     AccessLogModule,
     DemoRequestModule,
+    MonitoringModule,
   ],
 })
 export class AppModule {

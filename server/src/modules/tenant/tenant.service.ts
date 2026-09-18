@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { SmsService } from './services/sms.service';
+import { AuditService, AuditAction } from '../auth/services/audit.service';
 import { RegisterTenantDto } from './dto/register-tenant.dto';
-import { VerifyPhoneDto } from './dto/verify-phone.dto';
 import { ValidateTenantDto, RejectTenantDto } from './dto/admin-actions.dto';
 
 @Injectable()
@@ -16,12 +16,13 @@ export class TenantService {
   constructor(
     private prisma: PrismaService,
     private smsService: SmsService,
+    private auditService: AuditService,
   ) {}
 
   /**
-   * PUBLIC: Register a new school (status=pending)
+   * ADMIN: Create a new school directly (status=pending)
    */
-  async register(dto: RegisterTenantDto, ip?: string, userAgent?: string) {
+  async create(dto: RegisterTenantDto, ip?: string, userAgent?: string, actorId?: string) {
     // Check if phone already exists
     const existing = await this.prisma.tenant.findUnique({
       where: { phone: dto.phone },
@@ -40,10 +41,7 @@ export class TenantService {
       throw new ConflictException('A school with this name already exists');
     }
 
-    // Generate verification code
-    const validationCode = this.smsService.generateVerificationCode();
-
-    // Create tenant with pending status
+    // Create tenant with pending status (no OTP verification needed)
     const tenant = await this.prisma.tenant.create({
       data: {
         name: dto.name,
@@ -52,8 +50,6 @@ export class TenantService {
         commune: dto.commune,
         type: dto.type,
         status: 'pending',
-        validationCode,
-        isPhoneVerified: false,
       },
       select: {
         id: true,
@@ -67,61 +63,34 @@ export class TenantService {
       },
     });
 
-    // Log action
-    await this.logTenantAction(tenant.id, 'registered', ip, userAgent, {
+    // Log action using AuditService
+    const actor = actorId || 'system';
+    await this.auditService.logTenantCreated(
+      actor,
+      tenant.id,
+      tenant.id,
+      ip,
+      userAgent,
+      { phone: dto.phone, name: dto.name, email: dto.email, commune: dto.commune, type: dto.type },
+    );
+
+    // Also log to TenantLog for backward compatibility
+    await this.logTenantAction(tenant.id, 'created', ip, userAgent, {
       phone: dto.phone,
       name: dto.name,
     });
 
-    // Send SMS with verification code
-    await this.smsService.sendVerificationCode(dto.phone, validationCode);
+    // Send notification SMS (optional)
+    await this.smsService.sendVerificationCode(dto.phone, `Votre école "${dto.name}" a été enregistrée. En attente de validation.`);
 
     return {
-      message: 'School registered successfully. Please verify your phone number with the SMS code.',
+      message: 'School created successfully. Waiting for admin validation.',
       tenant: {
         id: tenant.id,
         name: tenant.name,
         phone: tenant.phone,
         status: tenant.status,
       },
-    };
-  }
-
-  /**
-   * PUBLIC: Verify phone number with SMS code
-   */
-  async verifyPhone(dto: VerifyPhoneDto, ip?: string, userAgent?: string) {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { phone: dto.phone },
-    });
-
-    if (!tenant) {
-      throw new NotFoundException('School not found');
-    }
-
-    if (tenant.isPhoneVerified) {
-      throw new BadRequestException('Phone number already verified');
-    }
-
-    if (tenant.validationCode !== dto.code) {
-      throw new UnauthorizedException('Invalid verification code');
-    }
-
-    // Mark phone as verified
-    const updated = await this.prisma.tenant.update({
-      where: { id: tenant.id },
-      data: { 
-        isPhoneVerified: true,
-        validationCode: null, // Clear code after verification
-      },
-    });
-
-    // Log action
-    await this.logTenantAction(tenant.id, 'phone_verified', ip, userAgent);
-
-    return {
-      message: 'Phone number verified successfully. Waiting for admin validation.',
-      status: updated.status,
     };
   }
 
@@ -136,7 +105,6 @@ export class TenantService {
         name: true,
         phone: true,
         status: true,
-        isPhoneVerified: true,
         rejectionReason: true,
         validatedAt: true,
         createdAt: true,
@@ -157,7 +125,6 @@ export class TenantService {
     return this.prisma.tenant.findMany({
       where: { 
         status: 'pending',
-        isPhoneVerified: true, // Only show phone-verified schools
       },
       select: {
         id: true,
@@ -167,7 +134,6 @@ export class TenantService {
         commune: true,
         type: true,
         status: true,
-        isPhoneVerified: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -202,7 +168,8 @@ export class TenantService {
     tenantId: string, 
     dto: ValidateTenantDto, 
     ip?: string, 
-    userAgent?: string
+    userAgent?: string,
+    actorId?: string
   ) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -216,10 +183,6 @@ export class TenantService {
       throw new BadRequestException('Only schools in pending status can be approved');
     }
 
-    if (!tenant.isPhoneVerified) {
-      throw new BadRequestException('Phone number must be verified before approval');
-    }
-
     // Update to active
     const updated = await this.prisma.tenant.update({
       where: { id: tenantId },
@@ -230,7 +193,18 @@ export class TenantService {
       },
     });
 
-    // Log action
+    // Log action using AuditService
+    const actor = actorId || dto.validatedBy || 'admin';
+    await this.auditService.logTenantApproved(
+      actor,
+      tenant.id,
+      tenantId,
+      ip,
+      userAgent,
+      { validatedBy: dto.validatedBy },
+    );
+
+    // Also log to TenantLog for backward compatibility
     await this.logTenantAction(tenantId, 'validated', ip, userAgent, {
       validatedBy: dto.validatedBy,
     });
@@ -256,7 +230,8 @@ export class TenantService {
     tenantId: string, 
     dto: RejectTenantDto, 
     ip?: string, 
-    userAgent?: string
+    userAgent?: string,
+    actorId?: string
   ) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -276,7 +251,18 @@ export class TenantService {
       },
     });
 
-    // Log action
+    // Log action using AuditService
+    const actor = actorId || dto.validatedBy || 'admin';
+    await this.auditService.logTenantRejected(
+      actor,
+      tenant.id,
+      tenantId,
+      ip,
+      userAgent,
+      { reason: dto.reason, rejectedBy: dto.validatedBy || 'Admin' },
+    );
+
+    // Also log to TenantLog for backward compatibility
     await this.logTenantAction(tenantId, 'rejected', ip, userAgent, {
       reason: dto.reason,
       rejectedBy: dto.validatedBy || 'Admin',
@@ -301,7 +287,141 @@ export class TenantService {
   }
 
   /**
-   * Helper: Log tenant actions
+   * ADMIN: Deactivate (suspend) a tenant
+   */
+  async deactivate(
+    tenantId: string,
+    actorId: string,
+    ip?: string,
+    userAgent?: string,
+    reason?: string
+  ) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('School not found');
+    }
+
+    if (tenant.status === 'rejected') {
+      throw new BadRequestException('Cannot deactivate a rejected school');
+    }
+
+    const updated = await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { status: 'suspended' },
+    });
+
+    await this.auditService.logTenantDeactivated(
+      actorId,
+      tenant.id,
+      tenantId,
+      ip,
+      userAgent,
+      { reason },
+    );
+
+    await this.logTenantAction(tenantId, 'deactivated', ip, userAgent, { reason });
+
+    return {
+      message: `School "${tenant.name}" deactivated`,
+      tenant: { id: updated.id, name: updated.name, status: updated.status },
+    };
+  }
+
+  /**
+   * ADMIN: Reactivate a suspended tenant
+   */
+  async reactivate(
+    tenantId: string,
+    actorId: string,
+    ip?: string,
+    userAgent?: string
+  ) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('School not found');
+    }
+
+    if (tenant.status !== 'suspended') {
+      throw new BadRequestException('Only suspended schools can be reactivated');
+    }
+
+    const updated = await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { status: 'active' },
+    });
+
+    await this.auditService.logTenantReactivated(
+      actorId,
+      tenant.id,
+      tenantId,
+      ip,
+      userAgent,
+    );
+
+    await this.logTenantAction(tenantId, 'reactivated', ip, userAgent);
+
+    return {
+      message: `School "${tenant.name}" reactivated`,
+      tenant: { id: updated.id, name: updated.name, status: updated.status },
+    };
+  }
+
+  /**
+   * ADMIN: Update tenant details
+   */
+  async update(
+    tenantId: string,
+    dto: Partial<RegisterTenantDto>,
+    actorId: string,
+    ip?: string,
+    userAgent?: string
+  ) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('School not found');
+    }
+
+    const updated = await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: dto,
+    });
+
+    await this.auditService.logTenantUpdated(
+      actorId,
+      tenant.id,
+      tenantId,
+      ip,
+      userAgent,
+      { updatedFields: Object.keys(dto) },
+    );
+
+    await this.logTenantAction(tenantId, 'updated', ip, userAgent, { updatedFields: Object.keys(dto) });
+
+    return {
+      message: `School "${tenant.name}" updated`,
+      tenant: {
+        id: updated.id,
+        name: updated.name,
+        phone: updated.phone,
+        email: updated.email,
+        commune: updated.commune,
+        type: updated.type,
+        status: updated.status,
+      },
+    };
+  }
+
+  /**
+   * Helper: Log tenant actions (for backward compatibility with TenantLog)
    */
   private async logTenantAction(
     tenantId: string,

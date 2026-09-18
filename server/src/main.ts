@@ -8,16 +8,34 @@ import { env } from './config/env';
 import { Logger } from 'pino';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
+const isProduction = env.NODE_ENV === 'production';
+
 async function configureApp(app: INestApplication) {
-  // Security headers
-  app.use(helmet());
+  // Security headers with explicit HSTS for production
+  app.use(helmet({
+    hsts: isProduction ? {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    } : false,
+    contentSecurityPolicy: false, // Adjust if needed for your frontend
+  }));
   
   // Cookie parser with secret
   app.use(cookieParser(env.COOKIE_SECRET));
   
   // CORS configuration
+  const allowedOrigins = Array.from(
+    new Set([
+      env.CLIENT_URL,
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:5173',
+    ].filter(Boolean))
+  );
+
   app.enableCors({
-    origin: env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
   });
 
@@ -27,11 +45,11 @@ async function configureApp(app: INestApplication) {
   // Global validation pipe with strict settings
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Strip properties that don't have decorators
-      forbidNonWhitelisted: true, // Throw error if non-whitelisted properties are present
-      transform: true, // Automatically transform payloads to DTO instances
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
       transformOptions: {
-        enableImplicitConversion: true, // Enable implicit type conversion
+        enableImplicitConversion: true,
       },
     })
   );

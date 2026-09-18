@@ -1,12 +1,16 @@
 import {
   validateSecret,
   validateUrl,
+  validateHttpsUrl,
   isKnownDefault,
   isWeakSecret,
   KNOWN_DEFAULTS,
   isProduction,
   validateRateLimit,
   validateRateLimitTtl,
+  validateLockoutConfig,
+  validateTokenExpiry,
+  validateMonitorThreshold,
 } from '../validation';
 
 describe('KNOWN_DEFAULTS', () => {
@@ -225,6 +229,148 @@ describe('validateRateLimitTtl', () => {
   it('throws when value is negative', () => {
     expect(() => validateRateLimitTtl('TEST_TTL', '-1000', 60000)).toThrow(
       'Configuration error: TEST_TTL must be a positive integer (milliseconds)',
+    );
+  });
+});
+
+describe('validateHttpsUrl', () => {
+  it('accepts valid HTTPS URL in production', () => {
+    expect(validateHttpsUrl('TEST_URL', 'https://app.example.com', true)).toBe('https://app.example.com');
+    expect(validateHttpsUrl('TEST_URL', 'https://sub.domain.com:8443/path', true)).toBe('https://sub.domain.com:8443/path');
+  });
+
+  it('accepts valid HTTP URL in development', () => {
+    expect(validateHttpsUrl('TEST_URL', 'http://localhost:3000', false)).toBe('http://localhost:3000');
+    expect(validateHttpsUrl('TEST_URL', 'http://127.0.0.1:5173', false)).toBe('http://127.0.0.1:5173');
+  });
+
+  it('rejects HTTP URL in production', () => {
+    expect(() => validateHttpsUrl('TEST_URL', 'http://app.example.com', true)).toThrow(
+      'Configuration error: TEST_URL must use HTTPS in production',
+    );
+    expect(() => validateHttpsUrl('TEST_URL', 'http://localhost:3000', true)).toThrow(
+      'Configuration error: TEST_URL must use HTTPS in production',
+    );
+  });
+
+  it('rejects invalid URL', () => {
+    expect(() => validateHttpsUrl('TEST_URL', 'not-a-url', true)).toThrow(
+      'Configuration error: TEST_URL must be a valid URL',
+    );
+  });
+
+  it('rejects missing URL', () => {
+    expect(() => validateHttpsUrl('TEST_URL', undefined, true)).toThrow(
+      'Configuration error: TEST_URL is required but not set',
+    );
+  });
+});
+
+describe('validateLockoutConfig', () => {
+  it('returns default value when not set', () => {
+    expect(validateLockoutConfig('TEST_THRESHOLD', undefined, 5)).toBe(5);
+    expect(validateLockoutConfig('TEST_DURATION', undefined, 900)).toBe(900);
+  });
+
+  it('returns parsed value when valid', () => {
+    expect(validateLockoutConfig('TEST_THRESHOLD', '3', 5)).toBe(3);
+    expect(validateLockoutConfig('TEST_THRESHOLD', '10', 5)).toBe(10);
+    expect(validateLockoutConfig('TEST_DURATION', '300', 900)).toBe(300);
+    expect(validateLockoutConfig('TEST_DURATION', '1800', 900)).toBe(1800);
+  });
+
+  it('throws when value is not a number', () => {
+    expect(() => validateLockoutConfig('TEST_THRESHOLD', 'abc', 5)).toThrow(
+      'Configuration error: TEST_THRESHOLD must be a positive integer',
+    );
+    expect(() => validateLockoutConfig('TEST_DURATION', 'abc', 900)).toThrow(
+      'Configuration error: TEST_DURATION must be a positive integer',
+    );
+  });
+
+  it('throws when value is zero', () => {
+    expect(() => validateLockoutConfig('TEST_THRESHOLD', '0', 5)).toThrow(
+      'Configuration error: TEST_THRESHOLD must be a positive integer',
+    );
+    expect(() => validateLockoutConfig('TEST_DURATION', '0', 900)).toThrow(
+      'Configuration error: TEST_DURATION must be a positive integer',
+    );
+  });
+
+  it('throws when value is negative', () => {
+    expect(() => validateLockoutConfig('TEST_THRESHOLD', '-5', 5)).toThrow(
+      'Configuration error: TEST_THRESHOLD must be a positive integer',
+    );
+    expect(() => validateLockoutConfig('TEST_DURATION', '-100', 900)).toThrow(
+      'Configuration error: TEST_DURATION must be a positive integer',
+    );
+  });
+});
+
+describe('validateTokenExpiry', () => {
+  it('returns default value when not set', () => {
+    expect(validateTokenExpiry('TEST_EXPIRY', undefined, 3600)).toBe(3600);
+  });
+
+  it('returns parsed value when valid', () => {
+    expect(validateTokenExpiry('TEST_EXPIRY', '1800', 3600)).toBe(1800);
+    expect(validateTokenExpiry('TEST_EXPIRY', '7200', 3600)).toBe(7200);
+  });
+
+  it('throws when value is not a number', () => {
+    expect(() => validateTokenExpiry('TEST_EXPIRY', 'abc', 3600)).toThrow(
+      'Configuration error: TEST_EXPIRY must be a positive integer (seconds)',
+    );
+  });
+
+  it('throws when value is zero', () => {
+    expect(() => validateTokenExpiry('TEST_EXPIRY', '0', 3600)).toThrow(
+      'Configuration error: TEST_EXPIRY must be a positive integer (seconds)',
+    );
+  });
+
+  it('throws when value is negative', () => {
+    expect(() => validateTokenExpiry('TEST_EXPIRY', '-100', 3600)).toThrow(
+      'Configuration error: TEST_EXPIRY must be a positive integer (seconds)',
+    );
+  });
+});
+
+describe('validateMonitorThreshold', () => {
+  it('returns default value when not set', () => {
+    expect(validateMonitorThreshold('MONITOR_TEST_FAILURES', undefined, 20)).toBe(20);
+    expect(validateMonitorThreshold('MONITOR_TEST_WINDOW', undefined, 10)).toBe(10);
+  });
+
+  it('returns parsed value when valid', () => {
+    expect(validateMonitorThreshold('MONITOR_TEST_FAILURES', '50', 20)).toBe(50);
+    expect(validateMonitorThreshold('MONITOR_TEST_WINDOW', '30', 10)).toBe(30);
+  });
+
+  it('throws when value is not a number', () => {
+    expect(() => validateMonitorThreshold('MONITOR_TEST_FAILURES', 'abc', 20)).toThrow(
+      'Configuration error: MONITOR_TEST_FAILURES must be a positive integer',
+    );
+    expect(() => validateMonitorThreshold('MONITOR_TEST_WINDOW', 'abc', 10)).toThrow(
+      'Configuration error: MONITOR_TEST_WINDOW must be a positive integer',
+    );
+  });
+
+  it('throws when value is zero', () => {
+    expect(() => validateMonitorThreshold('MONITOR_TEST_FAILURES', '0', 20)).toThrow(
+      'Configuration error: MONITOR_TEST_FAILURES must be a positive integer',
+    );
+    expect(() => validateMonitorThreshold('MONITOR_TEST_WINDOW', '0', 10)).toThrow(
+      'Configuration error: MONITOR_TEST_WINDOW must be a positive integer',
+    );
+  });
+
+  it('throws when value is negative', () => {
+    expect(() => validateMonitorThreshold('MONITOR_TEST_FAILURES', '-5', 20)).toThrow(
+      'Configuration error: MONITOR_TEST_FAILURES must be a positive integer',
+    );
+    expect(() => validateMonitorThreshold('MONITOR_TEST_WINDOW', '-10', 10)).toThrow(
+      'Configuration error: MONITOR_TEST_WINDOW must be a positive integer',
     );
   });
 });

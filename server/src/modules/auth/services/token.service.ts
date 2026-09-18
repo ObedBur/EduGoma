@@ -31,17 +31,25 @@ export class TokenService {
   }
 
   /**
-   * Generate long-lived refresh token (7 days)
+   * Generate long-lived refresh token (7 days default, 30 days if rememberMe)
    */
-  generateRefreshToken(payload: TokenPayload): string {
+  generateRefreshToken(payload: TokenPayload, rememberMe = false): string {
+    const expiresIn = rememberMe ? '30d' : (env.JWT_REFRESH_EXPIRES_IN as any);
     return jwtSignRefresh(
       { 
         sub: payload.sub, 
         tenantId: payload.tenantId,
         type: 'refresh',
       },
-      { expiresIn: env.JWT_REFRESH_EXPIRES_IN as any }
+      { expiresIn }
     );
+  }
+
+  /**
+   * Generate password reset token (random, not JWT)
+   */
+  generateResetToken(): string {
+    return crypto.randomBytes(32).toString('hex');
   }
 
   /**
@@ -78,6 +86,16 @@ export class TokenService {
   }
 
   /**
+   * Hash reset token before storing in database
+   */
+  async hashResetToken(token: string): Promise<string> {
+    return crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+  }
+
+  /**
    * Store refresh token hash in database
    */
   async storeRefreshToken(
@@ -101,6 +119,30 @@ export class TokenService {
     });
 
     return refreshToken.id;
+  }
+
+  /**
+   * Store password reset token hash in database
+   */
+  async storeResetToken(
+    userId: string,
+    tenantId: string,
+    token: string
+  ): Promise<string> {
+    const tokenHash = await this.hashResetToken(token);
+    const expiresAt = new Date();
+    expiresAt.setSeconds(expiresAt.getSeconds() + env.AUTH_RESET_TOKEN_EXPIRY);
+
+    const resetToken = await this.prisma.passwordResetToken.create({
+      data: {
+        userId,
+        tenantId,
+        tokenHash,
+        expiresAt,
+      },
+    });
+
+    return resetToken.id;
   }
 
   /**
@@ -135,6 +177,42 @@ export class TokenService {
   }
 
   /**
+   * Verify password reset token against database
+   */
+  async verifyResetToken(token: string): Promise<any> {
+    const tokenHash = await this.hashResetToken(token);
+
+    const storedToken = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (!storedToken) {
+      throw new Error('Invalid or expired reset token');
+    }
+
+    if (storedToken.usedAt) {
+      throw new Error('Reset token has already been used');
+    }
+
+    if (storedToken.expiresAt < new Date()) {
+      throw new Error('Reset token has expired');
+    }
+
+    return { storedToken };
+  }
+
+  /**
+   * Mark reset token as used
+   */
+  async markResetTokenUsed(tokenId: string): Promise<void> {
+    await this.prisma.passwordResetToken.update({
+      where: { id: tokenId },
+      data: { usedAt: new Date() },
+    });
+  }
+
+  /**
    * Revoke a specific refresh token
    */
   async revokeRefreshToken(tokenId: string): Promise<void> {
@@ -165,6 +243,16 @@ export class TokenService {
   }
 
   /**
+   * Revoke all reset tokens for a user
+   */
+  async revokeAllUserResetTokens(userId: string): Promise<void> {
+    await this.prisma.passwordResetToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+  }
+
+  /**
    * Clean up expired tokens (can be run as a cron job)
    */
   async cleanupExpiredTokens(): Promise<number> {
@@ -173,6 +261,16 @@ export class TokenService {
         OR: [
           { expiresAt: { lt: new Date() } },
           { isRevoked: true, createdAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }, // Revoked tokens older than 30 days
+        ],
+      },
+    });
+
+    // Also clean up expired reset tokens
+    await this.prisma.passwordResetToken.deleteMany({
+      where: {
+        OR: [
+          { expiresAt: { lt: new Date() } },
+          { usedAt: { not: null }, createdAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
         ],
       },
     });

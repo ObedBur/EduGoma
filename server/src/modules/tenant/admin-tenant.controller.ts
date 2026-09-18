@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Param, Body, Req, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Req, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { TenantService } from './tenant.service';
+import { RegisterTenantDto } from './dto/register-tenant.dto';
 import { ValidateTenantDto, RejectTenantDto } from './dto/admin-actions.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { CurrentUserId } from '../auth/decorators/user.decorator';
 
 /**
  * ADMIN Tenant Controller
@@ -14,6 +16,28 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminTenantController {
   constructor(private readonly tenantService: TenantService) {}
+
+  /**
+   * Create a new school
+   * POST /admin/tenants
+   */
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  async create(
+    @Body() dto: RegisterTenantDto,
+    @Req() req: Request,
+    @CurrentUserId() actorId: string,
+  ) {
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    const result = await this.tenantService.create(dto, ip, userAgent, actorId);
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
 
   /**
    * Get all pending schools
@@ -57,11 +81,12 @@ export class AdminTenantController {
     @Param('id') id: string,
     @Body() dto: ValidateTenantDto,
     @Req() req: Request,
+    @CurrentUserId() actorId: string,
   ) {
     const ip = req.ip ?? req.socket.remoteAddress;
     const userAgent = req.get('user-agent') ?? 'unknown';
 
-    const result = await this.tenantService.validate(id, dto, ip, userAgent);
+    const result = await this.tenantService.validate(id, dto, ip, userAgent, actorId);
 
     return {
       success: true,
@@ -79,11 +104,80 @@ export class AdminTenantController {
     @Param('id') id: string,
     @Body() dto: RejectTenantDto,
     @Req() req: Request,
+    @CurrentUserId() actorId: string,
   ) {
     const ip = req.ip ?? req.socket.remoteAddress;
     const userAgent = req.get('user-agent') ?? 'unknown';
 
-    const result = await this.tenantService.reject(id, dto, ip, userAgent);
+    const result = await this.tenantService.reject(id, dto, ip, userAgent, actorId);
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  /**
+   * Deactivate (suspend) a school
+   * POST /admin/tenants/:id/deactivate
+   */
+  @Post(':id/deactivate')
+  @HttpCode(HttpStatus.OK)
+  async deactivate(
+    @Param('id') id: string,
+    @Body() dto: { reason?: string },
+    @Req() req: Request,
+    @CurrentUserId() actorId: string,
+  ) {
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    const result = await this.tenantService.deactivate(id, actorId, ip, userAgent, dto.reason);
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  /**
+   * Reactivate a suspended school
+   * POST /admin/tenants/:id/reactivate
+   */
+  @Post(':id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  async reactivate(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @CurrentUserId() actorId: string,
+  ) {
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    const result = await this.tenantService.reactivate(id, actorId, ip, userAgent);
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  /**
+   * Update a school
+   * PATCH /admin/tenants/:id
+   */
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  async update(
+    @Param('id') id: string,
+    @Body() dto: Partial<RegisterTenantDto>,
+    @Req() req: Request,
+    @CurrentUserId() actorId: string,
+  ) {
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    const result = await this.tenantService.update(id, dto, actorId, ip, userAgent);
 
     return {
       success: true,
