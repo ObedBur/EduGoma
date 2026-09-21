@@ -32,6 +32,8 @@ model Tenant {
   tenantModules TenantModule[]
   accessLogs    AccessLog[]
   tenantLogs    TenantLog[]
+  alerts        Alert[]
+  tickets       Ticket[]
 }
 
 model User {
@@ -60,6 +62,7 @@ model Role {
   id       String @id @default(cuid())
   tenantId String
   name     String
+  level    Int?   // 1 = Super Admin (platform), 2 = Admin (school)
 
   // Relations
   tenant          Tenant           @relation(fields: [tenantId], references: [id])
@@ -239,5 +242,46 @@ model DemoRequest {
   updatedAt    DateTime @updatedAt
 
   @@index([status])
+  @@index([createdAt])
+}
+
+/// Alertes priorité plateforme
+model Alert {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  type      String   // SECURITY, SYSTEM, BILLING, USAGE
+  severity  String   @default("info") // info, warning, critical
+  title     String
+  message   String
+  source    String?  // Nom du service/module à l'origine
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([severity])
+  @@index([resolved])
+  @@index([createdAt])
+}
+
+/// Tickets de support & onboarding écoles
+model Ticket {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  title       String
+  description String?
+  category    String   @default("general") // integration, billing, technical, general
+  status      String   @default("open")    // open, in_progress, resolved, closed
+  priority    String   @default("normal")  // low, normal, urgent, critical
+  schoolName  String?
+  schoolId    String?
+  requester   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([status])
+  @@index([priority])
   @@index([createdAt])
 }

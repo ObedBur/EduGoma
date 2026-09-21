@@ -111,7 +111,7 @@ async function main() {
 
   // 5. Rôles
   const rolesData = [
-    { name: 'Admin', permissions: ['all.manage'] },
+    { name: 'Admin', level: 2, permissions: ['all.manage'] },
     {
       name: 'Directeur',
       permissions: [
@@ -158,6 +158,7 @@ async function main() {
     const role = await prisma.role.create({
       data: {
         name: roleDef.name,
+        level: roleDef.level,
         tenantId: tenant.id,
         rolePermissions: {
           create: roleDef.permissions.map((permName) => ({
@@ -180,7 +181,30 @@ async function main() {
       console.log(`✅ Rôle Admin assigné à ${adminUser.email}`);
     }
   }
-  console.log(`✅ ${rolesData.length} rôles créés`);
+
+  // 5b. Rôle Super Admin (level=1) — créé après la boucle pour éviter le doublon
+  const superAdminRole = await prisma.role.create({
+    data: {
+      name: 'Super Admin',
+      level: 1,
+      tenantId: tenant.id,
+      rolePermissions: {
+        create: [
+          { permission: { connect: { id: dbPermissions['all.manage'] } } },
+        ],
+      },
+    },
+  });
+
+  await prisma.userRole.create({
+    data: {
+      userId: adminUser.id,
+      roleId: superAdminRole.id,
+    },
+  });
+  console.log(`✅ Rôle Super Admin créé et assigné à ${adminUser.email}`);
+
+  console.log(`✅ ${rolesData.length + 1} rôles créés`);
 
   // 6. Créer quelques écoles faker supplémentaires (pour les tests admin)
   const fakeTenants = await Promise.all(
@@ -200,6 +224,43 @@ async function main() {
     }),
   );
   console.log(`✅ ${fakeTenants.length} écoles faker créées`);
+
+  // 7. Alertes priorité
+  const alertsData = [
+    { type: 'SECURITY', severity: 'critical', title: 'Tentatives de brute force', message: '50 tentatives de connexion échouées depuis IP 192.168.1.45 en 10 minutes', source: 'Auth Guard' },
+    { type: 'SYSTEM', severity: 'warning', title: 'Espace disque faible', message: 'Volume de stockage à 85% de capacité sur le noeud principal', source: 'Monitoring' },
+    { type: 'BILLING', severity: 'info', title: 'Paiement en attente', message: '3 écoles ont des factures impayées depuis plus de 30 jours', source: 'Billing' },
+    { type: 'USAGE', severity: 'warning', title: 'Pic d\'activité détecté', message: '320 connexions simultanées — 160% au-dessus de la normale', source: 'Analytics' },
+    { type: 'SECURITY', severity: 'critical', title: 'Token refresh compromis', message: 'Refresh token réutilisé depuis 2 IPs différentes', source: 'Auth Guard' },
+  ];
+
+  for (const alert of alertsData) {
+    await prisma.alert.create({
+      data: {
+        ...alert,
+        tenantId: tenant.id,
+      },
+    });
+  }
+  console.log(`✅ ${alertsData.length} alertes créées`);
+
+  // 8. Tickets de support
+  const ticketsData = [
+    { title: 'Assistance intégration ERP École', description: 'Demande d\'assistance import élèves pour Collège Boboto (Kinshasa)', category: 'integration', status: 'open', priority: 'urgent', schoolName: 'Collège Boboto', schoolId: 'EDUG-KI-KIN-0001', requester: 'Aline Nshuti · Directrice' },
+    { title: 'Paiement licence reçu', description: 'Renouvellement annuel 2024–2025 validé pour Lycée Shaumba', category: 'billing', status: 'resolved', priority: 'normal', schoolName: 'Lycée Shaumba', schoolId: 'EDUG-KI-KIN-0015', requester: 'Patrick Mumbere · Comptable' },
+    { title: 'Erreur de connexion API', description: 'L\'API retourne 503 intermittant pour les écoles du Sud-Kivu', category: 'technical', status: 'in_progress', priority: 'urgent', schoolName: 'Institut Mwangaza', schoolId: 'EDUG-NK-GOM-0589', requester: 'Jean Kabongo · Admin' },
+    { title: 'Formation utilisateurs', description: 'Demande de session de formation pour le personnel pedagogique', category: 'general', status: 'open', priority: 'low', schoolName: 'Collège Alfajiri', schoolId: 'EDUG-SK-BUK-0012', requester: 'Marie Nyirahabimana · Directrice' },
+  ];
+
+  for (const ticket of ticketsData) {
+    await prisma.ticket.create({
+      data: {
+        ...ticket,
+        tenantId: tenant.id,
+      },
+    });
+  }
+  console.log(`✅ ${ticketsData.length} tickets créés`);
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🔑 IDENTIFIANTS DE CONNEXION :');

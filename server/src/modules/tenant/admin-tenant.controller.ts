@@ -4,16 +4,16 @@ import { TenantService } from './tenant.service';
 import { RegisterTenantDto } from './dto/register-tenant.dto';
 import { ValidateTenantDto, RejectTenantDto } from './dto/admin-actions.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminGuard } from '../auth/guards/admin.guard';
+import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 import { CurrentUserId } from '../auth/decorators/user.decorator';
 
 /**
  * ADMIN Tenant Controller
- * Endpoints for manual validation/rejection (requires admin authentication)
- * Protected by JwtAuthGuard + AdminGuard
+ * Endpoints for manual validation/rejection (requires super admin authentication)
+ * Protected by JwtAuthGuard + SuperAdminGuard
  */
 @Controller('admin/tenants')
-@UseGuards(JwtAuthGuard, AdminGuard)
+@UseGuards(JwtAuthGuard, SuperAdminGuard)
 export class AdminTenantController {
   constructor(private readonly tenantService: TenantService) {}
 

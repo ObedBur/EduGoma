@@ -58,7 +58,7 @@ export function isProduction(): boolean {
 
 export function validateRateLimit(name: string, value: string | undefined, defaultValue: number): number {
   if (!value) return defaultValue;
-  const parsed = parseInt(value, 10);
+  const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed <= 0) {
     throw new Error(`Configuration error: ${name} must be a positive integer`);
   }
@@ -67,7 +67,7 @@ export function validateRateLimit(name: string, value: string | undefined, defau
 
 export function validateRateLimitTtl(name: string, value: string | undefined, defaultValue: number): number {
   if (!value) return defaultValue;
-  const parsed = parseInt(value, 10);
+  const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed <= 0) {
     throw new Error(`Configuration error: ${name} must be a positive integer (milliseconds)`);
   }
@@ -92,7 +92,7 @@ export function validateHttpsUrl(name: string, value: string | undefined, isProd
 
 export function validateLockoutConfig(name: string, value: string | undefined, defaultValue: number): number {
   if (!value) return defaultValue;
-  const parsed = parseInt(value, 10);
+  const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed <= 0) {
     throw new Error(`Configuration error: ${name} must be a positive integer`);
   }
@@ -101,7 +101,7 @@ export function validateLockoutConfig(name: string, value: string | undefined, d
 
 export function validateTokenExpiry(name: string, value: string | undefined, defaultValue: number): number {
   if (!value) return defaultValue;
-  const parsed = parseInt(value, 10);
+  const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed <= 0) {
     throw new Error(`Configuration error: ${name} must be a positive integer (seconds)`);
   }
@@ -110,7 +110,7 @@ export function validateTokenExpiry(name: string, value: string | undefined, def
 
 export function validateMonitorThreshold(name: string, value: string | undefined, defaultValue: number): number {
   if (!value) return defaultValue;
-  const parsed = parseInt(value, 10);
+  const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed <= 0) {
     throw new Error(`Configuration error: ${name} must be a positive integer`);
   }
@@ -129,7 +129,7 @@ export function validateBrevoConfig(name: string, value: string | undefined, isP
 
 export function validatePasswordHistoryLimit(name: string, value: string | undefined, defaultValue: number): number {
   if (!value) return defaultValue;
-  const parsed = parseInt(value, 10);
+  const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed < 0) {
     throw new Error(`Configuration error: ${name} must be a non-negative integer`);
   }

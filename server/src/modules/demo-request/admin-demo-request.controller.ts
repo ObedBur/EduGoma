@@ -11,14 +11,14 @@ import {
 import { DemoRequestService } from './demo-request.service';
 import { UpdateDemoRequestStatusDto } from './dto/update-demo-request-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminGuard } from '../auth/guards/admin.guard';
+import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 
 /**
  * ADMIN Demo Request Controller
- * Protected by JwtAuthGuard + AdminGuard
+ * Protected by JwtAuthGuard + SuperAdminGuard
  */
 @Controller('admin/demo-requests')
-@UseGuards(JwtAuthGuard, AdminGuard)
+@UseGuards(JwtAuthGuard, SuperAdminGuard)
 export class AdminDemoRequestController {
   constructor(private readonly demoRequestService: DemoRequestService) {}
 

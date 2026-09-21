@@ -149,7 +149,7 @@ export class AlertService implements OnModuleInit {
     return {
       embeds: [{
         title: `🚨 EduGoma Security Alert: ${payload.type}`,
-        color: parseInt(colorMap[payload.severity].replace('#', ''), 16),
+        color: Number.parseInt(colorMap[payload.severity].replace('#', ''), 16),
         fields: [
           { name: 'Tenant', value: payload.tenantId, inline: true },
           { name: 'Severity', value: payload.severity, inline: true },
