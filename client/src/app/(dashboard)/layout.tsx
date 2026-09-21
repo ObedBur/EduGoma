@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardSidebar, DashboardTopbar } from "@/components/layout/DashboardShared";
 
+import { DashboardPageSkeleton } from "@/components/skeletons/DashboardPageSkeleton";
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
@@ -26,8 +28,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f5f8fb]">
-        <div className="w-8 h-8 border-2 border-[#102d48] border-t-transparent rounded-full animate-spin" />
+      <div className="h-screen overflow-hidden bg-[#f5f8fb] text-[#23394e] flex">
+        <DashboardSidebar
+          collapsed={false}
+          desktopCollapsed={desktopCollapsed}
+          onClose={() => {}}
+        />
+        <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+          <DashboardTopbar
+            onMenu={() => {}}
+            desktopCollapsed={desktopCollapsed}
+            onToggleDesktop={toggleDesktop}
+          />
+          <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-7">
+            <DashboardPageSkeleton />
+          </main>
+        </div>
       </div>
     );
   }

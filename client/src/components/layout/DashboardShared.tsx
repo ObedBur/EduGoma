@@ -378,28 +378,41 @@ export function StatCard({
   accent?: "blue" | "green" | "orange" | "violet";
 }) {
   const accents = {
-    blue: "bg-[#e6f1fb] text-[#4387bc]",
-    green: "bg-[#e3f7ef] text-[#2a9d76]",
-    orange: "bg-[#fff3df] text-[#bd8241]",
-    violet: "bg-[#ecebff] text-[#6e6ac3]",
+    blue: "bg-[#eaf3fa] text-[#2c6e9e]",
+    green: "bg-[#e8f7f0] text-[#228e68]",
+    orange: "bg-[#fef3e6] text-[#b6732f]",
+    violet: "bg-[#f0edfd] text-[#6355b8]",
   };
+  const isNeutralTrend = !trend || trend === "+0" || trend === "+0.0%" || trend === "0%";
+  const isNegativeTrend = trend ? trend.startsWith("-") : false;
+
   return (
-    <div className="rounded-md border border-[#e4eaf0] bg-white p-3.5 shadow-[0_2px_7px_rgba(33,60,84,0.025)]">
-      <div className="flex items-start justify-between">
-        <p className="text-[9px] font-bold uppercase tracking-[0.04em] text-[#85919d]">{label}</p>
-        <span className={`flex h-6 w-6 items-center justify-center rounded-md ${accents[accent]}`}>
-          <IconComponent size={13} />
-        </span>
-      </div>
-      <div className="mt-2 flex items-end gap-2">
-        <p className="text-[23px] font-extrabold tracking-[-0.05em] text-[#182f45]">{value}</p>
-        {trend && (
-          <span className="mb-1 rounded px-1 py-0.5 text-[8px] font-bold text-[#2d9d76] bg-[#e5f7ef]">
-            {trend}
+    <div className="rounded-xl border border-[#e4eaf0] bg-white p-4 shadow-[0_2px_8px_rgba(20,40,65,0.03)] hover:shadow-[0_4px_12px_rgba(20,40,65,0.06)] hover:border-[#cfdbe5] transition-all duration-200 flex flex-col justify-between">
+      <div>
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">{label}</p>
+          <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${accents[accent]}`}>
+            <IconComponent size={14} />
           </span>
-        )}
+        </div>
+        <div className="mt-2.5 flex items-baseline gap-2">
+          <p className="text-[26px] font-extrabold tracking-[-0.04em] text-[#152a3d]">{value}</p>
+          {trend && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                isNeutralTrend
+                  ? "bg-[#f0f3f6] text-[#7d8c9a]"
+                  : isNegativeTrend
+                  ? "bg-[#fdeeed] text-[#c04845]"
+                  : "bg-[#e5f7ef] text-[#23906b]"
+              }`}
+            >
+              {trend}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2 text-[9px] text-[#8995a1]">
+      <div className="mt-3.5 pt-2.5 border-t border-[#f0f4f7] flex items-center justify-between gap-2 text-[10px] text-[#6d7f90]">
         {detail}
       </div>
     </div>

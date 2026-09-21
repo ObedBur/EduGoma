@@ -40,7 +40,7 @@ export async function submitDemoRequest(
   }
 
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
     const response = await fetch(`${backendUrl}/demo-requests`, {
       method: "POST",

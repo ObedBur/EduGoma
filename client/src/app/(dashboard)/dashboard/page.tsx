@@ -3,377 +3,574 @@
 import {
   Activity,
   AlertCircle,
-  ArrowDownToLine,
   ArrowUpRight,
   Bell,
   Building2,
-  CalendarDays,
-  Check,
   CheckCircle2,
-  ChevronDown,
   CircleHelp,
   Clock3,
-  CreditCard,
   Download,
   FileCheck2,
-  Gauge,
   GraduationCap,
-  Inbox,
   KeyRound,
   LayoutDashboard,
   LifeBuoy,
   ListFilter,
-  Network,
-  PencilLine,
-  Search,
-  Settings,
   ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
   Users,
 } from "lucide-react";
 import { StatCard } from "@/components/layout/DashboardShared";
-import type { Icon } from "@/components/layout/DashboardShared";
+import { useDashboard } from "@/hooks/use-dashboard";
+import { StatCardSkeleton } from "@/components/skeletons/StatCardSkeleton";
+import { ChartSkeleton } from "@/components/skeletons/ChartSkeleton";
+import { ActivityFeedSkeleton } from "@/components/skeletons/ActivityFeedSkeleton";
+import { DashboardPageSkeleton } from "@/components/skeletons/DashboardPageSkeleton";
+import type { Alert, Ticket } from "@/lib/api";
 
-const schools = [
-  {
-    name: "Institut Mwangaza de Goma",
-    id: "EDUG-NK-GOM-0589",
-    location: "Goma (Sud), Nord-Kivu",
-    date: "14 Oct 2024 · 09:42 CAT (il y a 17h)",
-    documents: "3/3 Validé",
-    status: "En cours de revue",
-    tone: "blue",
-  },
-  {
-    name: "Collège Alfajiri",
-    id: "EDUG-SK-BUK-0012",
-    location: "Bukavu, Sud-Kivu",
-    date: "15 Oct 2024 · 14:15 CAT (il y a 2h)",
-    documents: "3/3 Validé",
-    status: "Revue Urgente",
-    tone: "orange",
-  },
-  {
-    name: "Lycée Amanzi EDUG",
-    id: "EDUG-NK-GOM-0095",
-    location: "Goma (Centre), Nord-Kivu",
-    date: "16 Oct 2024 · 11:04 CAT (il y a 1h)",
-    documents: "2/3 (Agrément manquant)",
-    status: "Info requise",
-    tone: "red",
-  },
-  {
-    name: "Institut Technique Industriel (ITIG)",
-    id: "EDUG-NK-GOM-0104",
-    location: "Goma (Karisimbi), NK",
-    date: "17 Oct 2024 · 08:19 CAT (Aujourd'hui)",
-    documents: "3/3 Validé",
-    status: "Dépôt initial",
-    tone: "blue",
-  },
-];
+// ── Color maps ──────────────────────────────────────────────
 
-const activityItems = [
-  { icon: CheckCircle2, color: "text-emerald-500", title: "Accès école activé", text: "Accès activé pour l'école Complexe Scolaire La Fontaine (Kinshasa). Instance provisionnée.", time: "il y a 12m" },
-  { icon: FileCheck2, color: "text-sky-500", title: "Dossier soumis", text: "Institut Technique Industriel de Goma a téléversé ses statuts et formulaire d'adhésion.", time: "il y a 1h" },
-  { icon: KeyRound, color: "text-violet-500", title: "Identifiants Admin générés", text: "Accès préventifs pour CS Mwangaza. Authentification 2FA activée par défaut.", time: "il y a 3h" },
-  { icon: AlertCircle, color: "text-rose-500", title: "Abonnement suspendu", text: "Compte école suspendu suite à retard d'abonnement SaaS : Réf: #SUB-2024-099.", time: "il y a 5h" },
-  { icon: Download, color: "text-emerald-500", title: "Sauvegarde automatique", text: "Sauvegarde multi-tenant synchronisée avec succès vers le coffre-fort cloud EduGoma.", time: "il y a 6h" },
-];
+const SEVERITY_COLORS: Record<string, { bg: string; text: string; border: string; icon: typeof AlertCircle }> = {
+  critical: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200", icon: AlertCircle },
+  warning: { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", icon: AlertCircle },
+  info: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", icon: Bell },
+};
 
-function StatusPill({ children, tone }: { children: React.ReactNode; tone: string }) {
-  const styles: Record<string, string> = {
-    blue: "bg-[#e6f1fc] text-[#4a86b7]",
-    orange: "bg-[#fff0db] text-[#ba7938]",
-    red: "bg-[#ffe5e5] text-[#c55d63]",
-  };
-  return (
-    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-1 text-[8px] font-bold ${styles[tone]}`}>
-      {tone === "red" ? <AlertCircle size={9} /> : tone === "orange" ? <Clock3 size={9} /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
-      {children}
-    </span>
-  );
-}
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  open: { bg: "bg-red-50", text: "text-red-700" },
+  in_progress: { bg: "bg-orange-50", text: "text-orange-700" },
+  resolved: { bg: "bg-emerald-50", text: "text-emerald-700" },
+  closed: { bg: "bg-slate-100", text: "text-slate-600" },
+};
 
-function SchoolsTable() {
+const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
+  critical: { bg: "bg-red-100", text: "text-red-800" },
+  urgent: { bg: "bg-orange-100", text: "text-orange-800" },
+  normal: { bg: "bg-slate-100", text: "text-slate-600" },
+  low: { bg: "bg-slate-50", text: "text-slate-500" },
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  open: "Ouvert",
+  in_progress: "En traitement",
+  resolved: "Résolu",
+  closed: "Fermé",
+};
+
+const PRIORITY_LABELS: Record<string, string> = {
+  critical: "Critique",
+  urgent: "Urgent",
+  normal: "Normal",
+  low: "Faible",
+};
+
+const ACTIVITY_ICONS: Record<string, { icon: typeof CheckCircle2; color: string }> = {
+  ACCESS_GRANTED: { icon: CheckCircle2, color: "text-emerald-500" },
+  SCHOOL_CREATED: { icon: FileCheck2, color: "text-sky-500" },
+  DOSSIER_SUBMITTED: { icon: FileCheck2, color: "text-sky-500" },
+  DOSSIER_REJECTED: { icon: AlertCircle, color: "text-rose-500" },
+  SUBSCRIPTION_SUSPENDED: { icon: AlertCircle, color: "text-rose-500" },
+  SUBSCRIPTION_REACTIVATED: { icon: CheckCircle2, color: "text-emerald-500" },
+  ACCOUNT_DEACTIVATED: { icon: AlertCircle, color: "text-rose-500" },
+  LOGIN_SUCCESS: { icon: KeyRound, color: "text-violet-500" },
+  LOGIN_FAILED: { icon: AlertCircle, color: "text-rose-500" },
+  USER_REGISTERED: { icon: Users, color: "text-sky-500" },
+  PASSWORD_CHANGED: { icon: KeyRound, color: "text-violet-500" },
+  ROLE_ASSIGNED: { icon: ShieldCheck, color: "text-violet-500" },
+};
+
+// ── AlertPanel ──────────────────────────────────────────────
+
+function AlertPanel({ alerts }: { alerts: Alert[] }) {
+  if (alerts.length === 0) return null;
+
   return (
     <section className="rounded-md border border-[#e4eaf0] bg-white shadow-[0_2px_7px_rgba(33,60,84,0.025)]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf1f4] px-4 py-3">
-        <div className="flex items-start gap-2">
-          <div className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-md bg-[#eef3f7] text-[#52718a]">
-            <FileCheck2 size={13} />
-          </div>
-          <div>
-            <h2 className="text-[12px] font-bold text-[#23394e]">Écoles en attente de validation</h2>
-            <p className="mt-0.5 text-[9px] text-[#8a97a4]">Dossiers d'adhésion et configuration d'instance en attente de validation par l'équipe EduGoma</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-[#e9f3fb] px-2 py-1 text-[9px] font-bold text-[#5687ae]">4 dossiers</span>
-          <button className="flex h-7 items-center gap-1 rounded border border-[#e0e7ed] px-2 text-[9px] font-semibold text-[#627486] hover:bg-slate-50">
-            <ListFilter size={11} /> Filtrer par Province
-          </button>
-          <button className="flex h-7 w-7 items-center justify-center rounded border border-[#e0e7ed] text-[#627486] hover:bg-slate-50" aria-label="Télécharger">
-            <Download size={11} />
-          </button>
-        </div>
+      <div className="flex items-center justify-between border-b border-[#edf1f4] px-4 py-3">
+        <h2 className="flex items-center gap-2 text-[12px] font-bold text-[#23394e]">
+          <Bell size={13} className="text-red-500" /> Alertes priorité
+        </h2>
+        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[8px] font-bold text-red-700">
+          {alerts.length}
+        </span>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[680px] border-collapse text-left">
-          <thead>
-            <tr className="bg-[#f8fafc] text-[8px] font-bold uppercase tracking-[0.06em] text-[#83909c]">
-              <th className="px-4 py-2.5">École & ID</th>
-              <th className="px-3 py-2.5">Ville / Zone</th>
-              <th className="px-3 py-2.5">Date soumission</th>
-              <th className="px-3 py-2.5">Documents requis</th>
-              <th className="px-3 py-2.5">Statut de validation</th>
-              <th className="px-3 py-2.5"> </th>
-            </tr>
-          </thead>
-          <tbody>
-            {schools.map((school) => (
-              <tr key={school.id} className="border-t border-[#edf1f4] align-top hover:bg-[#fbfdff]">
-                <td className="px-4 py-3">
-                  <p className="max-w-[130px] text-[10px] font-bold leading-[1.35] text-[#344a5f]">{school.name}</p>
-                  <p className="mt-1 text-[8px] font-medium text-[#9aa5b0]">{school.id}</p>
-                </td>
-                <td className="px-3 py-3 text-[9px] leading-[1.35] text-[#687887]">
-                  <span className="flex max-w-[85px] gap-1"><span className="mt-0.5">⌖</span>{school.location}</span>
-                </td>
-                <td className="px-3 py-3 text-[9px] leading-[1.4] text-[#6c7b89]">{school.date}</td>
-                <td className="px-3 py-3">
-                  <span className={`inline-flex items-center gap-1 rounded px-1.5 py-1 text-[8px] font-bold ${school.tone === "red" ? "bg-[#ffe8e8] text-[#bf6067]" : "bg-[#e5f7ef] text-[#379d78]"}`}>
-                    {school.tone === "red" ? <AlertCircle size={9} /> : <Check size={9} />}
-                    {school.documents}
+      <div className="px-4">
+        {alerts.map((alert) => {
+          const colors = SEVERITY_COLORS[alert.severity] ?? SEVERITY_COLORS.info;
+          const IconComp = colors.icon;
+          return (
+            <div
+              key={alert.id}
+              className={`flex gap-2.5 border-b border-[#f0f3f5] py-3 last:border-0`}
+            >
+              <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${colors.bg} ${colors.text}`}>
+                <IconComp size={11} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[9px] font-bold text-[#536474]">{alert.title}</p>
+                  <span className={`shrink-0 rounded px-1 py-0.5 text-[7px] font-bold ${colors.bg} ${colors.text}`}>
+                    {alert.severity.toUpperCase()}
                   </span>
-                </td>
-                <td className="px-3 py-3"><StatusPill tone={school.tone}>{school.status}</StatusPill></td>
-                <td className="px-3 py-3 text-right">
-                  <button className="text-[9px] font-semibold text-[#66879e] hover:text-[#1e608b]">Aperçu</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#edf1f4] px-4 py-2.5 text-[9px] text-[#8d99a4]">
-        <span>Affichage de 4 dossiers d'adhésion sur 4 en file d'attente</span>
-        <button className="font-semibold text-[#4f7c9a] hover:underline">
-          Consulter les archives des écoles activées <ArrowUpRight size={10} className="inline" />
-        </button>
+                </div>
+                <p className="mt-1 text-[8px] leading-[1.45] text-[#87939f]">{alert.message}</p>
+                {alert.source && (
+                  <p className="mt-0.5 text-[7px] font-medium text-[#a0aab4]">Source: {alert.source}</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
 }
 
-function ActivityPanel() {
+// ── TicketPanel ─────────────────────────────────────────────
+
+function TicketPanel({ tickets }: { tickets: Ticket[] }) {
   return (
-    <div className="space-y-4">
-      <section className="rounded-md border border-[#e4eaf0] bg-white shadow-[0_2px_7px_rgba(33,60,84,0.025)]">
-        <div className="flex items-center justify-between border-b border-[#edf1f4] px-4 py-3">
-          <h2 className="flex items-center gap-2 text-[12px] font-bold text-[#23394e]">
-            <Activity size={13} /> Journal d'activité SaaS
-          </h2>
-          <span className="h-1.5 w-1.5 rounded-full bg-[#2cb183]" />
-        </div>
-        <div className="px-4">
-          {activityItems.map((item) => {
-            const IconComponent = item.icon;
+    <section className="rounded-xl border border-[#e4eaf0] bg-white shadow-[0_2px_8px_rgba(20,40,65,0.03)]">
+      <div className="flex items-center justify-between border-b border-[#edf1f4] px-4 py-3.5">
+        <h2 className="flex items-center gap-2 text-[12px] font-bold text-[#1a2f42]">
+          <LifeBuoy size={14} className="text-[#3b82f6]" /> Support & Onboarding Écoles
+        </h2>
+        <span className="rounded-full bg-[#e8f7f0] px-2 py-0.5 text-[8px] font-bold text-[#208a65]">SLA Actif</span>
+      </div>
+      <div className="px-4">
+        {tickets.length === 0 ? (
+          <div className="py-8 text-center">
+            <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#edf9f3] text-[#2ba075]">
+              <CheckCircle2 size={16} />
+            </div>
+            <p className="text-[11px] font-bold text-[#2e475d]">Aucun ticket en attente</p>
+            <p className="mt-0.5 text-[10px] text-[#8e9ca8]">Toutes les demandes ont été traitées</p>
+          </div>
+        ) : (
+          tickets.map((ticket) => {
+            const statusColor = STATUS_COLORS[ticket.status] ?? STATUS_COLORS.open;
+            const priorityColor = PRIORITY_COLORS[ticket.priority] ?? PRIORITY_COLORS.normal;
+            const created = new Date(ticket.createdAt);
+            const now = new Date();
+            const diffMin = Math.floor((now.getTime() - created.getTime()) / 60000);
+            const timeLabel = diffMin < 60 ? `${diffMin}m` : diffMin < 1440 ? `${Math.floor(diffMin / 60)}h` : `${Math.floor(diffMin / 1440)}j`;
+
             return (
-              <div key={item.title} className="flex gap-2.5 border-b border-[#f0f3f5] py-3 last:border-0">
-                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#f3f7f9] ${item.color}`}>
-                  <IconComponent size={11} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-[9px] font-bold text-[#536474]">{item.title}</p>
-                    <span className="shrink-0 text-[8px] text-[#a2acb6]">{item.time}</span>
+              <div key={ticket.id} className="flex items-start justify-between border-b border-[#f0f3f5] py-3 last:border-0">
+                <div className="min-w-0 flex-1 pr-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-[10px] font-bold text-[#2a4053] truncate">{ticket.title}</p>
+                    <span className={`rounded px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider ${priorityColor.bg} ${priorityColor.text}`}>
+                      {PRIORITY_LABELS[ticket.priority] ?? ticket.priority}
+                    </span>
                   </div>
-                  <p className="mt-1 text-[8px] leading-[1.45] text-[#87939f]">{item.text}</p>
+                  {ticket.description && (
+                    <p className="mt-1 text-[9px] text-[#7d8c9a] line-clamp-1 leading-relaxed">{ticket.description}</p>
+                  )}
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[8px] text-[#8e9ca8]">
+                    {ticket.schoolName && (
+                      <span className="font-semibold text-[#4e6477]">{ticket.schoolName}</span>
+                    )}
+                    {ticket.requester && (
+                      <span>· {ticket.requester}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-[8px] font-medium text-[#9aa6b1]">{timeLabel}</span>
+                  <span className={`mt-1 block rounded px-1.5 py-0.5 text-[8px] font-bold ${statusColor.bg} ${statusColor.text}`}>
+                    {STATUS_LABELS[ticket.status] ?? ticket.status}
+                  </span>
                 </div>
               </div>
             );
-          })}
-        </div>
-        <button className="w-full border-t border-[#edf1f4] py-3 text-center text-[9px] font-semibold text-[#557e9b] hover:bg-[#fbfdff]">
-          Voir l'historique complet des événements (2.410) →
-        </button>
-      </section>
-
-      <section className="rounded-md border border-[#e4eaf0] bg-white shadow-[0_2px_7px_rgba(33,60,84,0.025)]">
-        <div className="flex items-center justify-between border-b border-[#edf1f4] px-4 py-3">
-          <h2 className="flex items-center gap-2 text-[12px] font-bold text-[#23394e]">
-            <LifeBuoy size={13} /> Support & Onboarding Écoles
-          </h2>
-          <span className="rounded bg-[#e3f7ef] px-1.5 py-1 text-[8px] font-bold text-[#31916f]">SLA Actif</span>
-        </div>
-        <div className="px-4">
-          <div className="flex items-start justify-between border-b border-[#f0f3f5] py-3">
-            <div>
-              <p className="text-[9px] font-bold text-[#4b5e70]">Assistance intégration ERP École</p>
-              <p className="mt-1 text-[8px] text-[#919da7]">Demande d'assistance import élèves pour Collège Boboto (Kinshasa).</p>
-              <p className="mt-1 text-[8px] font-semibold text-[#6e8191]">Ticket #TCK-4819</p>
-            </div>
-            <div className="text-right">
-              <span className="text-[8px] text-[#86939f]">18m</span>
-              <span className="mt-1 block rounded bg-[#e7f5ef] px-1.5 py-1 text-[8px] font-bold text-[#36977a]">En traitement</span>
-            </div>
-          </div>
-          <div className="flex items-start justify-between py-3">
-            <div>
-              <p className="text-[9px] font-bold text-[#4b5e70]">Paiement licence reçu</p>
-              <p className="mt-1 text-[8px] text-[#919da7]">Renouvellement annuel 2024–2025 validé pour Lycée Shaumba.</p>
-              <p className="mt-1 text-[8px] font-semibold text-[#6e8191]">Plan Établissement Pro</p>
-            </div>
-            <div className="text-right">
-              <span className="text-[8px] text-[#86939f]">42m</span>
-              <span className="mt-1 block rounded bg-[#e7f5ef] px-1.5 py-1 text-[8px] font-bold text-[#36977a]">Acquitté</span>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center justify-between border-t border-[#edf1f4] px-4 py-2.5 text-[9px] text-[#778793]">
-          <span><CircleHelp size={10} className="mr-1 inline" /> Voir les métriques système & serveurs →</span>
-          <span className="font-medium">SaaS v2.4</span>
-        </div>
-      </section>
-    </div>
+          })
+        )}
+      </div>
+      <button className="w-full border-t border-[#edf1f4] py-2.5 text-center text-[10px] font-bold text-[#356588] hover:bg-[#f8fafc] transition-colors">
+        Voir tous les tickets →
+      </button>
+    </section>
   );
 }
 
-function GrowthChart() {
+// ── ActivityPanel ───────────────────────────────────────────
+
+function ActivityPanel({ items }: { items: { type: string; title: string; text: string; time: string }[] }) {
   return (
-    <section className="rounded-md border border-[#e4eaf0] bg-white p-4 shadow-[0_2px_7px_rgba(33,60,84,0.025)]">
+    <section className="rounded-xl border border-[#e4eaf0] bg-white shadow-[0_2px_8px_rgba(20,40,65,0.03)]">
+      <div className="flex items-center justify-between border-b border-[#edf1f4] px-4 py-3.5">
+        <h2 className="flex items-center gap-2 text-[12px] font-bold text-[#1a2f42]">
+          <Activity size={14} className="text-[#0ea5e9]" /> Journal d&apos;activité SaaS
+        </h2>
+        <span className="flex items-center gap-1 text-[8px] font-bold text-[#23906b]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#2cb183] animate-pulse" /> Direct
+        </span>
+      </div>
+      <div className="px-4">
+        {items.length === 0 ? (
+          <p className="py-6 text-center text-[10px] text-[#8a97a4]">Aucune activité récente</p>
+        ) : (
+          items.map((item, idx) => {
+            const { icon: IconComponent, color } = ACTIVITY_ICONS[item.type] ?? { icon: Activity, color: "text-slate-500" };
+            return (
+              <div key={`${idx}-${item.type}-${item.time}`} className="flex gap-3 border-b border-[#f0f3f5] py-3 last:border-0">
+                <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#f3f7fa] ${color}`}>
+                  <IconComponent size={12} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[10px] font-bold text-[#344b5f]">{item.title}</p>
+                    <span className="shrink-0 text-[8px] font-medium text-[#9aa6b1]">{item.time}</span>
+                  </div>
+                  <p className="mt-0.5 text-[9px] leading-relaxed text-[#758492]">{item.text}</p>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── GrowthChart ─────────────────────────────────────────────
+
+function GrowthChart({
+  growth,
+}: {
+  growth: { labels: string[]; schools: number[]; students: number[] } | null;
+}) {
+  const schoolsData = growth?.schools ?? [0, 0, 0, 0, 0, 0];
+  const studentsData = growth?.students ?? [0, 0, 0, 0, 0, 0];
+  const labels = growth?.labels && growth.labels.length > 0
+    ? growth.labels
+    : ["M1", "M2", "M3", "M4", "M5", "M6"];
+
+  const rawMaxSchools = Math.max(...schoolsData, 1);
+  const maxSchools = Math.max(Math.ceil((rawMaxSchools * 1.3) / 10) * 10, 10);
+
+  const rawMaxStudentsK = Math.max(...studentsData.map((s) => s / 1000), 1);
+  const maxStudentsK = Math.max(Math.ceil((rawMaxStudentsK * 1.3) / 10) * 10, 10);
+
+  const yLabels = [
+    maxSchools,
+    Math.round(maxSchools * 0.75),
+    Math.round(maxSchools * 0.5),
+    Math.round(maxSchools * 0.25),
+    0,
+  ];
+  const yLabelsRight = [
+    `${maxStudentsK}k`,
+    `${Math.round(maxStudentsK * 0.75)}k`,
+    `${Math.round(maxStudentsK * 0.5)}k`,
+    `${Math.round(maxStudentsK * 0.25)}k`,
+    "0k",
+  ];
+
+  const svgWidth = 600;
+  const svgHeight = 150;
+  const numPoints = Math.max(labels.length, schoolsData.length, 2);
+
+  const schoolCoords = schoolsData.map((v, i) => {
+    const x = (i / (numPoints - 1)) * svgWidth;
+    const y = svgHeight - (v / maxSchools) * (svgHeight - 30) - 15;
+    return { x, y };
+  });
+
+  const studentCoords = studentsData.map((v, i) => {
+    const x = (i / (numPoints - 1)) * svgWidth;
+    const y = svgHeight - (v / 1000 / maxStudentsK) * (svgHeight - 30) - 15;
+    return { x, y };
+  });
+
+  const schoolLinePath = schoolCoords
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(" ");
+
+  const schoolAreaPath = schoolCoords.length > 0
+    ? `${schoolLinePath} L ${svgWidth},${svgHeight} L 0,${svgHeight} Z`
+    : "";
+
+  const studentLinePath = studentCoords
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(" ");
+
+  const dateRangeLabel =
+    growth?.labels && growth.labels.length > 0
+      ? `(${growth.labels[0]} — ${growth.labels[growth.labels.length - 1]})`
+      : "";
+
+  return (
+    <section className="flex h-full flex-col rounded-xl border border-[#e4eaf0] bg-white p-5 shadow-[0_2px_8px_rgba(20,40,65,0.03)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#8996a1]">Métriques d'adoption & réseau scolaire</p>
-          <h2 className="mt-1 text-[13px] font-bold text-[#23394e]">Croissance du Parc Écoles & Élèves (Mai - Oct 2024)</h2>
+          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">Métriques d&apos;adoption & réseau scolaire</p>
+          <h2 className="mt-1 text-[14px] font-bold text-[#1a2f42]">
+            Croissance du Parc Écoles & Élèves {dateRangeLabel}
+          </h2>
         </div>
-        <button className="flex items-center gap-2 rounded border border-[#dfe7ec] px-2 py-1.5 text-[9px] font-semibold text-[#5e7384] hover:bg-slate-50">
-          <Download size={11} /> Exporter le rapport d'activité (PDF/CSV)
+        <button className="flex items-center gap-1.5 rounded-md border border-[#d6e0e8] bg-[#fbfcfd] px-2.5 py-1.5 text-[10px] font-semibold text-[#486378] hover:bg-[#f1f5f8] transition-colors">
+          <Download size={12} /> Exporter le rapport
         </button>
       </div>
-      <div className="mt-4 flex flex-wrap gap-4 text-[8px] font-medium text-[#6e7e8c]">
-        <span><i className="mr-1.5 inline-block h-2 w-2 rounded-full bg-[#162334]" />Écoles clientes actives</span>
-        <span><i className="mr-1.5 inline-block h-2 w-2 rounded-full bg-[#315d7a]" />Élèves gérés (k)</span>
-        <span>Objectif fin 2024 : 200 écoles / 130k élèves</span>
+
+      <div className="mt-3.5 flex flex-wrap gap-5 text-[10px] font-medium text-[#657685]">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#16293d]" />
+          Écoles clientes actives
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#387299]" />
+          Élèves gérés (k)
+        </span>
       </div>
-      <div className="relative mt-3 h-[165px] w-full">
-        <div className="absolute inset-0 flex flex-col justify-between text-[8px] text-[#9aa6b1]">
-          <span>200</span><span>150</span><span>100</span><span>50</span><span>0</span>
+
+      <div className="relative mt-4 flex-1 min-h-[160px]">
+        {/* Grille horizontale et labels Y gauche */}
+        <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-[9px] font-semibold text-[#8c9ca9] w-6 text-right">
+          {yLabels.map((l, i) => (
+            <span key={`y-left-${i}`}>{l}</span>
+          ))}
         </div>
-        <div className="absolute inset-y-0 left-8 right-6 flex flex-col justify-between">
-          <span className="border-t border-dashed border-[#e6ebef]" />
-          <span className="border-t border-dashed border-[#e6ebef]" />
-          <span className="border-t border-dashed border-[#e6ebef]" />
-          <span className="border-t border-dashed border-[#e6ebef]" />
-          <span className="border-t border-dashed border-[#e6ebef]" />
+
+        {/* Lignes de repère */}
+        <div className="absolute inset-y-0 left-8 right-8 flex flex-col justify-between bottom-6">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <span key={i} className="border-t border-dashed border-[#e9eff4]" />
+          ))}
         </div>
-        <svg viewBox="0 0 600 160" preserveAspectRatio="none" className="absolute inset-y-2 left-8 right-6 h-[145px] w-[calc(100%-56px)] overflow-visible">
-          <path d="M0,138 C65,122 112,113 168,99 C227,84 272,71 333,57 C399,42 454,26 512,14 C548,7 570,4 600,2 L600,160 L0,160 Z" fill="url(#area)" opacity=".26" />
-          <path d="M0,138 C65,122 112,113 168,99 C227,84 272,71 333,57 C399,42 454,26 512,14 C548,7 570,4 600,2" fill="none" stroke="#142331" strokeWidth="2.3" />
-          <path d="M0,151 C60,141 114,131 168,122 C229,111 275,101 333,87 C395,74 455,59 512,44 C548,35 577,29 600,22" fill="none" stroke="#315d7a" strokeWidth="2" strokeDasharray="5 4" />
+
+        {/* Tracé SVG interactif */}
+        <svg
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          preserveAspectRatio="none"
+          className="absolute inset-y-0 left-8 right-8 h-[calc(100%-24px)] w-[calc(100%-64px)] overflow-visible"
+        >
+          {schoolAreaPath && (
+            <path d={schoolAreaPath} fill="url(#growthAreaGrad)" opacity=".18" />
+          )}
+          {schoolLinePath && (
+            <path d={schoolLinePath} fill="none" stroke="#16293d" strokeWidth="2.5" strokeLinecap="round" />
+          )}
+          {studentLinePath && (
+            <path d={studentLinePath} fill="none" stroke="#387299" strokeWidth="2" strokeDasharray="5 4" strokeLinecap="round" />
+          )}
+
           <defs>
-            <linearGradient id="area" x1="0" x2="0" y1="0" y2="1">
-              <stop stopColor="#b9d6e7" />
-              <stop offset="1" stopColor="#eaf3f8" />
+            <linearGradient id="growthAreaGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop stopColor="#387299" />
+              <stop offset="1" stopColor="#edf4f8" stopOpacity="0" />
             </linearGradient>
           </defs>
         </svg>
-        <div className="absolute bottom-[-17px] left-8 right-5 flex justify-between text-[8px] text-[#8995a0]">
-          <span>Mai 2024</span><span>Juin 2024</span><span>Juil 2024</span><span>Août 2024</span><span>Sep 2024</span>
-          <span className="font-bold text-[#4b5d6d]">Oct 2024<br />(Actuel)</span>
+
+        {/* Labels Y droite */}
+        <div className="absolute right-0 top-0 bottom-6 flex flex-col justify-between text-[9px] font-semibold text-[#8c9ca9] w-6">
+          {yLabelsRight.map((l, i) => (
+            <span key={`y-right-${i}`}>{l}</span>
+          ))}
         </div>
-        <div className="absolute right-0 top-0 flex h-[145px] flex-col justify-between text-[8px] text-[#9aa6b1]">
-          <span>120k</span><span>90k</span><span>60k</span><span>30k</span><span>0k</span>
+
+        {/* Labels X mois */}
+        <div className="absolute bottom-0 left-8 right-8 flex justify-between text-[9px] font-semibold text-[#7f8f9e]">
+          {labels.map((l, i) => (
+            <span
+              key={`x-label-${i}`}
+              className={i === labels.length - 1 ? "font-bold text-[#1c3245]" : ""}
+            >
+              {l}
+            </span>
+          ))}
         </div>
       </div>
-      <div className="mt-9 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <div className="bg-[#f3f7fa] px-3 py-2">
-          <p className="text-[8px] text-[#7c8d99]">Délai moyen d'onboarding</p>
-          <p className="mt-1 text-[12px] font-extrabold text-[#29445b]">36h 12m</p>
-          <p className="text-[8px] text-[#49a17e]">-14% vs T2 (accélération)</p>
+
+      {/* 3 Blocs métriques */}
+      <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-[#e8edf2] bg-[#f9fafc] p-3">
+          <p className="text-[10px] font-semibold text-[#748594]">Délai moyen d&apos;onboarding</p>
+          <p className="mt-1 text-[16px] font-black tracking-tight text-[#172c3e]">{hours}h {mins}m</p>
+          <span className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[8px] font-bold ${trendBg} ${trendColor}`}>
+            {trend}% {metrics?.onboarding.trendLabel ?? "vs mois précédent"}
+          </span>
         </div>
-        <div className="bg-[#f3f7fa] px-3 py-2">
-          <p className="text-[8px] text-[#7c8d99]">Taux de complétude dossiers</p>
-          <p className="mt-1 text-[12px] font-extrabold text-[#29445b]">98.1%</p>
-          <p className="text-[8px] text-[#7c8d99]">Validés du premier coup</p>
+        <div className="rounded-lg border border-[#e8edf2] bg-[#f9fafc] p-3">
+          <p className="text-[10px] font-semibold text-[#748594]">Taux de complétude dossiers</p>
+          <p className="mt-1 text-[16px] font-black tracking-tight text-[#172c3e]">{completion}%</p>
+          <p className="mt-1.5 text-[9px] font-medium text-[#7d8e9c]">Validés du premier coup</p>
         </div>
-        <div className="bg-[#f3f7fa] px-3 py-2">
-          <p className="text-[8px] text-[#7c8d99]">Stockage Cloud Écoles</p>
-          <p className="mt-1 text-[12px] font-extrabold text-[#29445b]">148.5 Go</p>
-          <p className="text-[8px] text-[#7c8d99]">Archives scellées & chiffrées</p>
+        <div className="rounded-lg border border-[#e8edf2] bg-[#f9fafc] p-3">
+          <p className="text-[10px] font-semibold text-[#748594]">Stockage Cloud Écoles</p>
+          <p className="mt-1 text-[16px] font-black tracking-tight text-[#172c3e]">{storage} Go</p>
+          <p className="mt-1.5 text-[9px] font-medium text-[#7d8e9c]">Archives scellées & chiffrées</p>
         </div>
       </div>
     </section>
   );
 }
 
+// ── Main Page ───────────────────────────────────────────────
+
 export default function DashboardPage() {
+  const { summary, growth, metrics, activityLog, alerts, tickets, loading, error } = useDashboard();
+
+  if (loading) {
+    return <DashboardPageSkeleton />;
+  }
+
+  const schoolsCount = summary?.schools.total ?? summary?.schools.active ?? 0;
+
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="mb-2 flex items-center gap-1.5 text-[9px] text-[#81909d]">
-            <span className="rounded bg-[#e8f1f7] px-2 py-1 font-bold uppercase tracking-[0.07em] text-[#436b85]">▦ EDUGOMA SAAS › PLATFORM CONTROL CENTER</span>
+          <div className="mb-2 flex items-center gap-1.5 text-[10px] text-[#7d8c9a]">
+            <span className="rounded bg-[#e8f1f7] px-2 py-0.5 font-bold uppercase tracking-[0.06em] text-[#345f7d]">
+              ▦ EDUGOMA SAAS › PLATFORM CONTROL CENTER
+            </span>
             <span>•</span>
-            <span>Multi-Tenant Network</span>
+            <span className="font-medium">Multi-Tenant Network</span>
           </div>
-          <h1 className="text-[20px] font-bold leading-tight tracking-[-0.035em] text-[#172f45] sm:text-[22px]">
-            Synthèse de l'activité du réseau scolaire aujourd'hui.
+          <h1 className="text-[22px] font-extrabold leading-tight tracking-[-0.035em] text-[#152a3d] sm:text-[24px]">
+            Synthèse de l&apos;activité du réseau scolaire aujourd&apos;hui.
           </h1>
         </div>
-        <div className="flex items-center gap-2 rounded-md border border-[#e1e8ee] bg-white px-3 py-2 shadow-[0_2px_6px_rgba(33,60,84,0.025)]">
-          <span className="h-2 w-2 rounded-full bg-[#2bad7d]" />
+        <div className="flex items-center gap-2.5 rounded-lg border border-[#e1e8ee] bg-white px-3.5 py-2 shadow-sm">
+          <span className="h-2 w-2 rounded-full bg-[#2bad7d] animate-ping" />
           <div>
-            <p className="text-[8px] font-semibold text-[#74818c]">Infrastructure SaaS Cloud</p>
-            <p className="text-[10px] font-bold text-[#355166]">Disponibilité globale : <span className="text-[#2d9d77]">99.98%</span></p>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-[#798794]">Infrastructure SaaS Cloud</p>
+            <p className="text-[11px] font-bold text-[#233d52]">
+              Disponibilité globale : <span className="text-[#23906b]">99.98%</span>
+            </p>
           </div>
-          <Settings size={13} className="ml-2 text-[#8794a0]" />
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-[#dfe7ed]">
-        <button className="flex items-center gap-2 rounded-t-md border-b-2 border-[#14334f] bg-white px-3 py-2 text-[10px] font-bold text-[#263e54]">
-          <LayoutDashboard size={12} /> Vue Métiers & Écoles <span className="rounded bg-[#eef3f7] px-1.5 py-0.5 text-[8px]">184</span>
+      <div className="mb-5 flex flex-wrap items-center gap-2 border-b border-[#dfe7ed]">
+        <button className="flex items-center gap-2 rounded-t-lg border-b-2 border-[#122e47] bg-white px-3.5 py-2.5 text-[11px] font-bold text-[#1a334b]">
+          <LayoutDashboard size={13} /> Vue Métiers & Écoles{" "}
+          <span className="rounded-full bg-[#edf3f8] px-2 py-0.5 text-[9px] font-bold text-[#355b79]">
+            {schoolsCount}
+          </span>
         </button>
-        <button className="flex items-center gap-2 px-3 py-2 text-[10px] font-medium text-[#788896] hover:text-[#29465d]">
-          <Activity size={12} /> Santé Système & Infrastructure <span className="rounded bg-[#e5f7ef] px-1.5 py-0.5 text-[8px] font-bold text-[#369b77]">3 nodes actifs</span>
+        <button className="flex items-center gap-2 px-3.5 py-2.5 text-[11px] font-medium text-[#708191] hover:text-[#1c364e] transition-colors">
+          <Activity size={13} /> Santé Système & Infrastructure{" "}
+          <span className="rounded-full bg-[#e6f7ef] px-2 py-0.5 text-[9px] font-bold text-[#248f69]">
+            3 nodes actifs
+          </span>
         </button>
       </div>
 
-      <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md bg-[#102d48] px-4 py-3 text-white shadow-[0_3px_8px_rgba(15,44,70,0.12)]">
-        <div className="flex items-center gap-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#214863] text-[#75d0b2]">
-            <Sparkles size={14} />
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#a9ddcf]">Action prioritaire requise</span>
-              <span className="text-[10px] text-[#c4d3de]">Dossier en attente depuis 3 jours</span>
+      {summary?.pendingDossiers && summary.pendingDossiers.count > 0 && (
+        <section className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#102d48] px-4 py-3 text-white shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#214863] text-[#75d0b2]">
+              <Sparkles size={16} />
             </div>
-            <p className="mt-0.5 text-[11px] font-bold text-white">4 écoles partenaires ont soumis leur dossier d'inscription finalisé en attente de validation.</p>
-            <p className="mt-0.5 text-[9px] text-[#b7c9d6]">Validation requise sous 48h pour activation des accès école et provisionnement du portail.</p>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#a9ddcf]">
+                  Action prioritaire requise
+                </span>
+                <span className="text-[10px] text-[#c4d3de]">Dossier en attente</span>
+              </div>
+              <p className="mt-0.5 text-[11px] font-bold text-white">
+                {summary.pendingDossiers.count} école{summary.pendingDossiers.count > 1 ? "s" : ""} partenaire{summary.pendingDossiers.count > 1 ? "s" : ""} ont soumis leur dossier d&apos;inscription en attente de validation.
+              </p>
+            </div>
           </div>
-        </div>
-        <button className="ml-10 flex shrink-0 items-center gap-2 rounded bg-white px-3 py-2 text-[9px] font-bold text-[#29465d] hover:bg-[#eaf2f7]">
-          <FileCheck2 size={11} /> Examiner les dossiers (4)
-        </button>
-      </section>
+          <button className="ml-10 flex shrink-0 items-center gap-2 rounded-md bg-white px-3.5 py-2 text-[10px] font-bold text-[#233d52] hover:bg-[#edf3f8] transition-colors">
+            <FileCheck2 size={12} /> Examiner les dossiers ({summary.pendingDossiers.count})
+          </button>
+        </section>
+      )}
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Écoles actives" value="184" trend="+12 ce mois" icon={Building2} detail={<><span>Réparties sur 6 provinces</span><strong className="text-[#42586a]">Taux d'activité <b className="text-[#2e9d76]">96%</b></strong></>} />
-        <StatCard label="Dossiers en attente" value="4" icon={Clock3} accent="orange" detail={<><span className="rounded bg-[#ffebdf] px-1 text-[#c67b44]">2 urgents signalés</span><strong className="text-[#42586a]">Temps moyen de validation : 36h</strong></>} />
-        <StatCard label="Utilisateurs plateforme" value="42,850" trend="+8.4%" icon={Users} accent="violet" detail={<><span>Staff, préfets & enseignants</span><strong className="text-[#42586a]">3,120 actifs aujourd'hui</strong></>} />
-        <StatCard label="Élèves couverts" value="118,400" trend="+14.2% trim." icon={GraduationCap} accent="green" detail={<><span>Licences SaaS actives</span><strong className="text-[#42586a]">98.4% renouvellement</strong></>} />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0 space-y-4">
-          <SchoolsTable />
-          <GrowthChart />
+      {error ? (
+        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-[11px] text-red-700">
+          Erreur de chargement : {error}
         </div>
-        <ActivityPanel />
+      ) : summary ? (
+        <div className="mb-5 grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Écoles actives"
+            value={String(summary.schools.active)}
+            trend={summary.schools.trend}
+            icon={Building2}
+            detail={
+              <>
+                <span>Réparties sur {summary.schools.provinces} province{summary.schools.provinces > 1 ? "s" : ""}</span>
+                <strong className="text-[#3a5266]">
+                  Taux d&apos;activité <b className="text-[#23906b]">{summary.schools.activityRate}%</b>
+                </strong>
+              </>
+            }
+          />
+          <StatCard
+            label="Dossiers en attente"
+            value={String(summary.pendingDossiers.count)}
+            icon={Clock3}
+            accent="orange"
+            detail={
+              <>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[8px] font-bold ${
+                    summary.pendingDossiers.urgent > 0
+                      ? "bg-[#ffede2] text-[#c2672a]"
+                      : "bg-[#f0f3f6] text-[#7d8c9a]"
+                  }`}
+                >
+                  {summary.pendingDossiers.urgent} urgent{summary.pendingDossiers.urgent > 1 ? "s" : ""}
+                </span>
+                <strong className="text-[#3a5266]">Validation : {summary.pendingDossiers.avgValidationHours}h</strong>
+              </>
+            }
+          />
+          <StatCard
+            label="Utilisateurs plateforme"
+            value={summary.users.total.toLocaleString("fr-FR")}
+            trend={summary.users.trend}
+            icon={Users}
+            accent="violet"
+            detail={
+              <>
+                <span>Staff & enseignants</span>
+                <strong className="text-[#3a5266]">
+                  {summary.users.activeToday.toLocaleString("fr-FR")} actif{summary.users.activeToday > 1 ? "s" : ""} aujourd&apos;hui
+                </strong>
+              </>
+            }
+          />
+          <StatCard
+            label="Élèves couverts"
+            value={summary.students.total.toLocaleString("fr-FR")}
+            trend={summary.students.trend}
+            icon={GraduationCap}
+            accent="green"
+            detail={
+              <>
+                <span>Licences SaaS actives</span>
+                <strong className="text-[#3a5266]">{summary.students.renewalRate}% renouvellement</strong>
+              </>
+            }
+          />
+        </div>
+      ) : null}
+
+      {/* Alertes priorité */}
+      {alerts.length > 0 && (
+        <div className="mb-5">
+          <AlertPanel alerts={alerts} />
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0">
+          <GrowthChart growth={growth} metrics={metrics} />
+        </div>
+        <div className="space-y-5">
+          <ActivityPanel items={activityLog} />
+          <TicketPanel tickets={tickets} />
+        </div>
       </div>
     </>
   );
