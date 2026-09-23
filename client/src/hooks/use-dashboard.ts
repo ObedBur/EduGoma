@@ -5,6 +5,7 @@ import {
   statsApi,
   alertsApi,
   ticketsApi,
+  healthApi,
   type SummaryStats,
   type GrowthData,
   type MetricsData,
@@ -12,6 +13,7 @@ import {
   type Alert,
   type Ticket,
   type TicketStats,
+  type SystemHealth,
 } from "@/lib/api";
 
 interface DashboardData {
@@ -19,9 +21,10 @@ interface DashboardData {
   growth: GrowthData | null;
   metrics: MetricsData | null;
   activityLog: ActivityLogItem[];
-  alerts: Alert[];
+  alerts: Alert[] | null;
   tickets: Ticket[];
   ticketStats: TicketStats | null;
+  systemHealth: SystemHealth | null;
   loading: boolean;
   error: string | null;
   refetch: () => void;
@@ -32,9 +35,10 @@ export function useDashboard(): DashboardData {
   const [growth, setGrowth] = useState<GrowthData | null>(null);
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [activityLog, setActivityLog] = useState<ActivityLogItem[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alerts, setAlerts] = useState<Alert[] | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketStats, setTicketStats] = useState<TicketStats | null>(null);
+  const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,37 +46,55 @@ export function useDashboard(): DashboardData {
     setLoading(true);
     setError(null);
 
-    try {
-      const [summaryData, growthData, metricsData, activityData, alertsData, ticketsData, ticketStatsData] =
-        await Promise.all([
-          statsApi.getSummary(),
-          statsApi.getGrowth(6),
-          statsApi.getMetrics(),
-          statsApi.getActivityLog(5),
-          alertsApi.getPriority(5),
-          ticketsApi.get({ limit: 3 }),
-          ticketsApi.getStats(),
-        ]);
+    const results = await Promise.allSettled([
+      statsApi.getSummary(),
+      statsApi.getGrowth(6),
+      statsApi.getMetrics(),
+      statsApi.getActivityLog(5),
+      alertsApi.getPriority(5),
+      ticketsApi.get({ limit: 4 }),
+      ticketsApi.getStats(),
+      healthApi.getSystemHealth(),
+    ]);
 
-      setSummary(summaryData);
-      setGrowth(growthData);
-      setMetrics(metricsData);
-      setActivityLog(activityData);
-      setAlerts(alertsData);
-      setTickets(ticketsData);
-      setTicketStats(ticketStatsData);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Erreur de chargement";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
+    const failedRequests: string[] = [];
+    const valueOrNull = <T,>(
+      result: PromiseSettledResult<T>,
+      label: string,
+    ): T | null => {
+      if (result.status === "fulfilled") return result.value;
+      failedRequests.push(label);
+      return null;
+    };
+
+    const summaryData = valueOrNull(results[0], "statistiques générales");
+    const growthData = valueOrNull(results[1], "croissance");
+    const metricsData = valueOrNull(results[2], "indicateurs");
+    const activityData = valueOrNull(results[3], "journal d’activité");
+    const alertsData = valueOrNull(results[4], "alertes");
+    const ticketsData = valueOrNull(results[5], "tickets");
+    const ticketStatsData = valueOrNull(results[6], "statistiques des tickets");
+    const systemHealthData = valueOrNull(results[7], "état du service");
+
+    setSummary(summaryData);
+    setGrowth(growthData);
+    setMetrics(metricsData);
+    setActivityLog(activityData ?? []);
+    setAlerts(alertsData);
+    setTickets(ticketsData ?? []);
+    setTicketStats(ticketStatsData);
+    setSystemHealth(systemHealthData);
+    setError(
+      failedRequests.length > 0
+        ? `Certaines données n’ont pas pu être chargées : ${failedRequests.join(", ")}.`
+        : null,
+    );
+    setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
 
-  return { summary, growth, metrics, activityLog, alerts, tickets, ticketStats, loading, error, refetch: fetchAll };
+  return { summary, growth, metrics, activityLog, alerts, tickets, ticketStats, systemHealth, loading, error, refetch: fetchAll };
 }

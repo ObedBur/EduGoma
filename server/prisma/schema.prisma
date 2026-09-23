@@ -23,17 +23,22 @@ model Tenant {
   validatedAt     DateTime?
   validatedBy     String?
   domain          String? // Optionnel maintenant
+  /// trial | active | overdue | suspended (#43)
+  subscriptionStatus String   @default("trial")
+  subscriptionPaidAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   // Relations
-  users         User[]
-  roles         Role[]
-  tenantModules TenantModule[]
-  accessLogs    AccessLog[]
-  tenantLogs    TenantLog[]
-  alerts        Alert[]
-  tickets       Ticket[]
+  users              User[]
+  roles              Role[]
+  tenantModules      TenantModule[]
+  accessLogs         AccessLog[]
+  tenantLogs         TenantLog[]
+  alerts             Alert[]
+  tickets            Ticket[]
+  notificationLogs   NotificationLog[]
+  payments           Payment[]
 }
 
 model User {
@@ -284,4 +289,39 @@ model Ticket {
   @@index([status])
   @@index([priority])
   @@index([createdAt])
+}
+
+/// Anti-doublon pour la séquence d'onboarding J+0…J+30 (#51)
+model NotificationLog {
+  id       String   @id @default(cuid())
+  tenantId String
+  /// j1_guide | j3_login_reminder | j7_import | j14_no_students | j27_trial | j30_suspend
+  step     String
+  /// email | whatsapp | alert | system
+  channel  String
+  sentAt   DateTime @default(now())
+  success  Boolean  @default(true)
+  errorMsg String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, step, channel])
+  @@index([tenantId])
+}
+
+/// Paiements mensuels d'abonnement (#43)
+model Payment {
+  id         String   @id @default(cuid())
+  tenantId   String
+  /// YYYY-MM (ex: 2026-09)
+  period     String
+  paidAt     DateTime @default(now())
+  recordedBy String?
+  note       String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, period])
+  @@index([tenantId])
+  @@index([paidAt])
 }

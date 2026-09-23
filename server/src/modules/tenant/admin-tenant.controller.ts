@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Patch, Param, Body, Req, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, Req, HttpCode, HttpStatus, UseGuards, BadRequestException } from '@nestjs/common';
 import { Request } from 'express';
 import { TenantService } from './tenant.service';
 import { RegisterTenantDto } from './dto/register-tenant.dto';
 import { ValidateTenantDto, RejectTenantDto } from './dto/admin-actions.dto';
+import { ListTenantsQueryDto, ListPageQueryDto } from './dto/list-tenants.query';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 import { CurrentUserId } from '../auth/decorators/user.decorator';
@@ -16,6 +17,22 @@ import { CurrentUserId } from '../auth/decorators/user.decorator';
 @UseGuards(JwtAuthGuard, SuperAdminGuard)
 export class AdminTenantController {
   constructor(private readonly tenantService: TenantService) {}
+
+  /**
+   * Paginated list (sort / filters / search)
+   * GET /admin/tenants?page=&limit=&sort=&order=&search=&status=&commune=&type=&subscription=
+   */
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  async list(@Query() query: ListTenantsQueryDto) {
+    const result = await this.tenantService.listTenants(query);
+
+    return {
+      success: true,
+      count: result.meta.total,
+      data: result,
+    };
+  }
 
   /**
    * Create a new school
@@ -40,34 +57,143 @@ export class AdminTenantController {
   }
 
   /**
-   * Get all pending schools
-   * GET /admin/tenants/pending
+   * Get pending schools (paginated)
+   * GET /admin/tenants/pending?page=&limit=
    */
   @Get('pending')
   @HttpCode(HttpStatus.OK)
-  async getPending() {
-    const tenants = await this.tenantService.getPending();
+  async getPending(@Query() query: ListPageQueryDto) {
+    const result = await this.tenantService.listTenants({
+      ...query,
+      status: 'pending',
+      sort: 'createdAt',
+      order: 'desc',
+    });
 
     return {
       success: true,
-      count: tenants.length,
-      data: tenants,
+      count: result.meta.total,
+      data: result.items,
+      meta: result.meta,
     };
   }
 
   /**
-   * Get all active schools
-   * GET /admin/tenants/active
+   * Get active schools (paginated)
+   * GET /admin/tenants/active?page=&limit=
    */
   @Get('active')
   @HttpCode(HttpStatus.OK)
-  async getActive() {
-    const tenants = await this.tenantService.getActive();
+  async getActive(@Query() query: ListPageQueryDto) {
+    const result = await this.tenantService.listTenants({
+      ...query,
+      status: 'active',
+      sort: 'validatedAt',
+      order: 'desc',
+    });
 
     return {
       success: true,
-      count: tenants.length,
-      data: tenants,
+      count: result.meta.total,
+      data: result.items,
+      meta: result.meta,
+    };
+  }
+
+  /**
+   * Get suspended schools (paginated)
+   * GET /admin/tenants/suspended?page=&limit=
+   */
+  @Get('suspended')
+  @HttpCode(HttpStatus.OK)
+  async getSuspended(@Query() query: ListPageQueryDto) {
+    const result = await this.tenantService.listTenants({
+      ...query,
+      status: 'suspended',
+      sort: 'createdAt',
+      order: 'desc',
+    });
+
+    return {
+      success: true,
+      count: result.meta.total,
+      data: result.items,
+      meta: result.meta,
+    };
+  }
+
+  /**
+   * List users of a school
+   * GET /admin/tenants/:id/users
+   */
+  @Get(':id/users')
+  @HttpCode(HttpStatus.OK)
+  async getUsers(@Param('id') id: string) {
+    const users = await this.tenantService.getUsers(id);
+
+    return {
+      success: true,
+      count: users.length,
+      data: users,
+    };
+  }
+
+  /**
+   * Per-school stats (users, honest student proxy, documents)
+   * GET /admin/tenants/:id/stats
+   */
+  @Get(':id/stats')
+  @HttpCode(HttpStatus.OK)
+  async getStats(@Param('id') id: string) {
+    const stats = await this.tenantService.getStats(id);
+
+    return {
+      success: true,
+      data: stats,
+    };
+  }
+
+  /**
+   * Impersonate a school (super admin only) — short-lived token with `imp` claim
+   * POST /admin/tenants/:id/impersonate
+   */
+  @Post(':id/impersonate')
+  @HttpCode(HttpStatus.OK)
+  async impersonate(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @CurrentUserId() actorId: string,
+  ) {
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    const result = await this.tenantService.impersonate(id, actorId, ip, userAgent);
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  /**
+   * Stop impersonation (audit only — client restores original token)
+   * POST /admin/tenants/:id/impersonate/stop
+   */
+  @Post(':id/impersonate/stop')
+  @HttpCode(HttpStatus.OK)
+  async stopImpersonation(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @CurrentUserId() actorId: string,
+  ) {
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    await this.tenantService.stopImpersonation(id, actorId, ip, userAgent);
+
+    return {
+      success: true,
+      message: 'Impersonation stopped',
     };
   }
 
@@ -178,6 +304,38 @@ export class AdminTenantController {
     const userAgent = req.get('user-agent') ?? 'unknown';
 
     const result = await this.tenantService.update(id, dto, actorId, ip, userAgent);
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  /**
+   * Mark monthly subscription payment (#43)
+   * PATCH /admin/tenants/:id/subscription
+   */
+  @Patch(':id/subscription')
+  @HttpCode(HttpStatus.OK)
+  async markSubscription(
+    @Param('id') id: string,
+    @Body() dto: { action?: string },
+    @Req() req: Request,
+    @CurrentUserId() actorId: string,
+  ) {
+    if (dto?.action && dto.action !== 'mark_paid') {
+      throw new BadRequestException('Unsupported action');
+    }
+
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    const result = await this.tenantService.markSubscriptionPaid(
+      id,
+      actorId,
+      ip,
+      userAgent,
+    );
 
     return {
       success: true,

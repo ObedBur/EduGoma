@@ -57,9 +57,15 @@ describe('StatsService', () => {
 
   describe('getSummary', () => {
     it('should return summary stats with correct structure', async () => {
+      // getTenantCounts order: all, active, pending, suspended, trial, overdue
+      // then getSummary: currentMonth, previousMonth
       prisma.tenant.count
-        .mockResolvedValueOnce(5)   // active schools
-        .mockResolvedValueOnce(10)  // total schools
+        .mockResolvedValueOnce(10)  // all (counts)
+        .mockResolvedValueOnce(5)   // active (counts)
+        .mockResolvedValueOnce(2)   // pending
+        .mockResolvedValueOnce(1)   // suspended
+        .mockResolvedValueOnce(3)   // trial
+        .mockResolvedValueOnce(1)   // overdue
         .mockResolvedValueOnce(2)   // current month schools
         .mockResolvedValueOnce(1);  // previous month schools
 
@@ -82,13 +88,24 @@ describe('StatsService', () => {
 
       const result = await service.getSummary();
 
+      expect(result).toHaveProperty('counts');
       expect(result).toHaveProperty('schools');
       expect(result).toHaveProperty('pendingDossiers');
       expect(result).toHaveProperty('users');
       expect(result).toHaveProperty('students');
 
+      expect(result.counts).toEqual({
+        all: 10,
+        active: 5,
+        pending: 2,
+        suspended: 1,
+        trial: 3,
+        overdue: 1,
+      });
+
       expect(result.schools).toEqual({
         active: 5,
+        total: 10,
         trend: '+1',
         activityRate: 50,
         provinces: 2,
@@ -97,7 +114,7 @@ describe('StatsService', () => {
       expect(result.pendingDossiers).toEqual({
         count: 3,
         urgent: 1,
-        avgValidationHours: 36,
+        avgValidationHours: null,
       });
 
       expect(result.users.total).toBe(20);
@@ -106,10 +123,14 @@ describe('StatsService', () => {
 
     it('should calculate activity rate correctly', async () => {
       prisma.tenant.count
+        .mockResolvedValueOnce(10)  // all
         .mockResolvedValueOnce(8)   // active
-        .mockResolvedValueOnce(10)  // total
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(0);
+        .mockResolvedValueOnce(0)   // pending
+        .mockResolvedValueOnce(0)   // suspended
+        .mockResolvedValueOnce(0)   // trial
+        .mockResolvedValueOnce(0)   // overdue
+        .mockResolvedValueOnce(0)   // current month
+        .mockResolvedValueOnce(0);  // previous month
 
       prisma.tenant.findMany.mockResolvedValue([]);
       prisma.demoRequest.count
@@ -131,6 +152,10 @@ describe('StatsService', () => {
 
     it('should handle zero total schools', async () => {
       prisma.tenant.count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0)
         .mockResolvedValueOnce(0)
         .mockResolvedValueOnce(0)
         .mockResolvedValueOnce(0)
@@ -156,9 +181,13 @@ describe('StatsService', () => {
 
     it('should calculate school trend correctly', async () => {
       prisma.tenant.count
+        .mockResolvedValueOnce(10)  // all
         .mockResolvedValueOnce(5)   // active
-        .mockResolvedValueOnce(10)  // total
-        .mockResolvedValueOnce(3)   // current month (new schools)
+        .mockResolvedValueOnce(0)   // pending
+        .mockResolvedValueOnce(0)   // suspended
+        .mockResolvedValueOnce(0)   // trial
+        .mockResolvedValueOnce(0)   // overdue
+        .mockResolvedValueOnce(3)   // current month
         .mockResolvedValueOnce(1);  // previous month
 
       prisma.tenant.findMany.mockResolvedValue([]);
@@ -191,7 +220,7 @@ describe('StatsService', () => {
       expect(result).toHaveProperty('schools');
       expect(result).toHaveProperty('students');
       expect(result).toHaveProperty('targets');
-      expect(result.targets).toEqual({ schools: 200, students: 130000 });
+      expect(result.targets).toEqual({ schools: 200, students: null });
     });
 
     it('should return correct number of months', async () => {
@@ -305,7 +334,7 @@ describe('StatsService', () => {
       expect(result.onboarding.avgHours).toBe(42);
     });
 
-    it('should use default avgHours when no validated tenants', async () => {
+    it('should return null avgHours when no validated tenants', async () => {
       prisma.tenant.findMany
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
@@ -314,7 +343,7 @@ describe('StatsService', () => {
 
       const result = await service.getMetrics();
 
-      expect(result.onboarding.avgHours).toBe(36.2);
+      expect(result.onboarding.avgHours).toBeNull();
     });
 
     it('should calculate completion rate from demo requests', async () => {
@@ -351,7 +380,7 @@ describe('StatsService', () => {
       expect(result.onboarding.trend).toBe(-75);
     });
 
-    it('should default trend to -14 when no previous month tenants', async () => {
+    it('should return null trend when no previous month tenants', async () => {
       prisma.tenant.findMany
         .mockResolvedValueOnce([
           { createdAt: new Date(Date.now() - 3600000), validatedAt: new Date() },
@@ -362,7 +391,7 @@ describe('StatsService', () => {
 
       const result = await service.getMetrics();
 
-      expect(result.onboarding.trend).toBe(-14);
+      expect(result.onboarding.trend).toBeNull();
     });
 
     it('should estimate storage from accessLog count', async () => {

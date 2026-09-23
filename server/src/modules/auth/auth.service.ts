@@ -458,14 +458,24 @@ export class AuthService {
 
   /**
    * Validate user and return user data (for guards)
+   * When `impersonation` claim is present (plan #3), skip strict tenant-match check
    */
-  async validateUser(userId: string, tenantId: string): Promise<any> {
+  async validateUser(userId: string, tenantId: string, impersonation?: { by: string; tenant: string; at: string }): Promise<any> {
+    const where: any = {
+      id: userId,
+      isActive: true,
+    };
+
+    if (impersonation) {
+      // Impersonation: user must exist and be active, but tenantId in token
+      // is the *target* tenant (not the user's home tenant)
+      where.id = userId;
+    } else {
+      where.tenantId = tenantId;
+    }
+
     const user = await this.prisma.user.findFirst({
-      where: {
-        id: userId,
-        tenantId: tenantId,
-        isActive: true,
-      },
+      where,
       select: {
         id: true,
         email: true,

@@ -9,6 +9,12 @@ export interface TokenPayload {
   tenantId: string;
   email?: string;
   phone?: string;
+  /** Impersonation claim (plan #3) — set when super admin impersonates a tenant */
+  imp?: {
+    by: string;
+    tenant: string;
+    at: string;
+  };
 }
 
 @Injectable()

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { getTenantCounts } from './tenant-counts';
 
 const FRENCH_MONTHS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -96,7 +97,7 @@ export class StatsService {
       labels: monthLabels,
       schools: schoolsData,
       students: studentsData,
-      targets: { schools: 200, students: 130000 },
+      targets: { schools: 200, students: null },
     };
   }
 
@@ -105,9 +106,9 @@ export class StatsService {
     const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
+    const counts = await getTenantCounts(this.prisma);
+
     const [
-      activeSchools,
-      totalSchools,
       currentMonthSchools,
       previousMonthSchools,
       distinctProvinces,
@@ -120,8 +121,6 @@ export class StatsService {
       currentMonthStudents,
       previousMonthStudents,
     ] = await Promise.all([
-      this.prisma.tenant.count({ where: { status: 'active' } }),
-      this.prisma.tenant.count(),
       this.prisma.tenant.count({ where: { createdAt: { gte: startOfCurrentMonth } } }),
       this.prisma.tenant.count({
         where: { createdAt: { gte: startOfPreviousMonth, lt: startOfCurrentMonth } },
@@ -169,7 +168,7 @@ export class StatsService {
     ]);
 
     const activityRate =
-      totalSchools > 0 ? Math.round((activeSchools / totalSchools) * 100) : 0;
+      counts.all > 0 ? Math.round((counts.active / counts.all) * 100) : 0;
 
     const schoolTrend = currentMonthSchools - previousMonthSchools;
     const userTrendPct =
@@ -182,9 +181,10 @@ export class StatsService {
         : '0.0';
 
     return {
+      counts,
       schools: {
-        active: activeSchools,
-        total: totalSchools,
+        active: counts.active,
+        total: counts.all,
         trend: schoolTrend >= 0 ? `+${schoolTrend}` : `${schoolTrend}`,
         activityRate,
         provinces: distinctProvinces.filter((p) => p.commune !== null).length || distinctProvinces.length,
@@ -192,7 +192,7 @@ export class StatsService {
       pendingDossiers: {
         count: pendingDossiers,
         urgent: urgentDossiers,
-        avgValidationHours: 36,
+        avgValidationHours: null,
       },
       users: {
         total: totalUsers,
@@ -202,7 +202,7 @@ export class StatsService {
       students: {
         total: currentMonthStudents,
         trend: `+${studentTrendPct}%`,
-        renewalRate: 98.4,
+        renewalRate: null,
       },
     };
   }
@@ -233,7 +233,7 @@ export class StatsService {
     ]);
 
     const calcAvgHours = (tenants: { createdAt: Date; validatedAt: Date | null }[]) => {
-      if (tenants.length === 0) return 36.2;
+      if (tenants.length === 0) return null;
       const total = tenants.reduce((sum, t) => {
         const ms = t.validatedAt!.getTime() - t.createdAt.getTime();
         return sum + ms / (1000 * 60 * 60);
@@ -243,13 +243,15 @@ export class StatsService {
 
     const currentAvgHours = calcAvgHours(currentMonthTenants);
     const previousAvgHours = calcAvgHours(previousMonthTenants);
-    const trend = previousMonthTenants.length > 0
-      ? Math.round(((currentAvgHours - previousAvgHours) / previousAvgHours) * 100)
-      : -14;
+    const trend =
+      currentAvgHours !== null && previousAvgHours !== null && previousAvgHours > 0
+        ? Math.round(((currentAvgHours - previousAvgHours) / previousAvgHours) * 100)
+        : null;
 
-    const completionRate = totalDemoRequests > 0
-      ? Math.round((convertedRequests / totalDemoRequests) * 1000) / 10
-      : 98.1;
+    const completionRate =
+      totalDemoRequests > 0
+        ? Math.round((convertedRequests / totalDemoRequests) * 1000) / 10
+        : null;
 
     const usedGB = Math.round((accessLogCount * 0.5 / 1024) * 10) / 10;
 
@@ -257,15 +259,15 @@ export class StatsService {
       onboarding: {
         avgHours: currentAvgHours,
         trend,
-        trendLabel: trend < 0 ? 'vs mois précédent (accélération)' : 'vs mois précédent',
+        trendLabel: trend !== null && trend < 0 ? 'vs mois précédent (accélération)' : 'vs mois précédent',
       },
       completionRate: {
         rate: completionRate,
-        note: 'Validés du premier coup',
+        note: 'Demandes de démo converties',
       },
       storage: {
         usedGB,
-        note: 'Estimé depuis les logs d\'activité (archives scellées & chiffrées)',
+        note: 'Estimation approximative',
       },
     };
   }

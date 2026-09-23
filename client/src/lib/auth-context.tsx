@@ -14,7 +14,9 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** Impersonation target (plan #3) — null if not impersonating */
+  impersonating: { id: string; name: string } | null;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (data: {
     email?: string;
     phone?: string;
@@ -24,16 +26,35 @@ interface AuthContextType {
     lastName: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
+  /** Stop impersonation: restore admin token and refresh user */
+  stopImpersonation: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const TOKEN_KEY = "edugoma_token";
+const TOKEN_BACKUP_KEY = "edugoma_token_backup";
+const IMPERSONATING_KEY = "edugoma_impersonating";
+
+function readImpersonating(): { id: string; name: string } | null {
+  try {
+    const raw = localStorage.getItem(IMPERSONATING_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.id === "string" && typeof parsed.name === "string") {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [impersonating, setImpersonating] = useState<{ id: string; name: string } | null>(null);
 
   const setAuth = useCallback((accessToken: string, userData: User) => {
     setToken(accessToken);
@@ -45,9 +66,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_BACKUP_KEY);
+    localStorage.removeItem(IMPERSONATING_KEY);
+    setImpersonating(null);
   }, []);
 
   useEffect(() => {
+    setImpersonating(readImpersonating());
     const stored = localStorage.getItem(TOKEN_KEY);
     if (!stored) {
       const timer = window.setTimeout(() => setIsLoading(false), 0);
@@ -66,8 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const res = await authApi.login({ email, password });
+  const login = async (email: string, password: string, rememberMe?: boolean) => {
+    const res = await authApi.login({ email, password, rememberMe });
     setAuth(res.accessToken, res.user);
   };
 
@@ -90,9 +115,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /** Restore admin token after impersonation (plan #3) */
+  const stopImpersonation = async () => {
+    const backup = localStorage.getItem(TOKEN_BACKUP_KEY);
+    const target = readImpersonating();
+
+    // Audit stop on server (best-effort)
+    if (target && token) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/admin/tenants/${target.id}/impersonate/stop`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+          credentials: "include",
+        });
+      } catch {
+        // ignore — client still restores local session
+      }
+    }
+
+    localStorage.removeItem(IMPERSONATING_KEY);
+    setImpersonating(null);
+
+    if (backup) {
+      localStorage.setItem(TOKEN_KEY, backup);
+      localStorage.removeItem(TOKEN_BACKUP_KEY);
+      try {
+        const me = await authApi.me(backup);
+        setToken(backup);
+        setUser(me);
+      } catch {
+        clearAuth();
+      }
+    } else {
+      clearAuth();
+    }
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, token, isLoading, login, register, logout }}
+      value={{ user, token, isLoading, impersonating, login, register, logout, stopImpersonation }}
     >
       {children}
     </AuthContext.Provider>

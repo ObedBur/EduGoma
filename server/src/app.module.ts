@@ -13,6 +13,7 @@ import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { AlertModule } from './modules/alert/alert.module';
 import { HealthModule } from './modules/health/health.module';
 import { TicketModule } from './modules/ticket/ticket.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 import { TenantMiddleware } from './common/middlewares/tenant.middleware';
@@ -37,6 +38,7 @@ import { StatsModule } from './stats/stats.module';
     AlertModule,
     HealthModule,
     TicketModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {

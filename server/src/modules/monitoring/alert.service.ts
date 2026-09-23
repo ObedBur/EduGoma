@@ -17,13 +17,10 @@ export class AlertService implements OnModuleInit {
   private alertCounts = new Map<string, { count: number; firstAlert: Date }>();
   private brevoClient: BrevoClient | null = null;
   private brevoEnabled = false;
-  private brevoEnabled = false;
 
   async onModuleInit(): Promise<void> {
     this.initializeBrevo();
   }
-
-  private brevoClient: BrevoClient | null = null;
 
   private initializeBrevo(): void {
     if (!env.BREVO_API_KEY || !env.BREVO_SENDER_EMAIL) {

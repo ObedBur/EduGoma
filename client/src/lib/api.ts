@@ -49,6 +49,14 @@ async function request<T>(
 // ── Stats API ──────────────────────────────────────────────
 
 export interface SummaryStats {
+  counts: {
+    all: number;
+    active: number;
+    pending: number;
+    suspended: number;
+    trial: number;
+    overdue: number;
+  };
   schools: {
     active: number;
     total: number;
@@ -59,7 +67,7 @@ export interface SummaryStats {
   pendingDossiers: {
     count: number;
     urgent: number;
-    avgValidationHours: number;
+    avgValidationHours: number | null;
   };
   users: {
     total: number;
@@ -69,7 +77,7 @@ export interface SummaryStats {
   students: {
     total: number;
     trend: string;
-    renewalRate: number;
+    renewalRate: number | null;
   };
 }
 
@@ -173,6 +181,34 @@ export const ticketsApi = {
   getStats: () => request<TicketStats>("/admin/support/tickets/stats"),
 };
 
+// ── Health API ──────────────────────────────────────────────
+
+export interface SystemHealth {
+  status: "healthy" | "degraded";
+  uptime: string;
+  uptimeMs: number;
+  timestamp: string;
+  database: {
+    status: "connected" | "error";
+    latencyMs: number;
+  };
+  memory: {
+    heapUsedMB: number;
+    heapTotalMB: number;
+    rssUsedMB: number;
+    externalMB: number;
+    usagePercent: number;
+  };
+  stats: {
+    totalTenants: number;
+    totalUsers: number;
+  };
+}
+
+export const healthApi = {
+  getSystemHealth: () => request<SystemHealth>("/admin/system/health"),
+};
+
 export interface User {
   id: string;
   email?: string;
@@ -187,6 +223,7 @@ export interface LoginPayload {
   email?: string;
   phone?: string;
   password: string;
+  rememberMe?: boolean;
 }
 
 export interface RegisterPayload {
@@ -234,5 +271,149 @@ export const authApi = {
     request<{ message: string }>(`/auth/reset-password`, {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+};
+
+export interface CreateTenantPayload {
+  name: string;
+  phone: string;
+  email?: string;
+  commune?: string;
+  type?: string;
+}
+
+export const tenantsApi = {
+  create: (payload: CreateTenantPayload) =>
+    request<{ id: string; name: string }>(`/admin/tenants`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  /** Liste paginée — params construits via toListParams() de list-table */
+  getList: (params: string) =>
+    request<PaginatedTenants>(`/admin/tenants?${params}`),
+
+  getPending: () => request<TenantSummary[]>(`/admin/tenants/pending`),
+  getActive: () => request<TenantSummary[]>(`/admin/tenants/active`),
+  getSuspended: () => request<TenantSummary[]>(`/admin/tenants/suspended`),
+  getUsers: (id: string) => request<TenantUser[]>(`/admin/tenants/${id}/users`),
+  /** Per-school stats: users, honest student proxy, documents (plan #2) */
+  getStats: (id: string) => request<SchoolStats>(`/admin/tenants/${id}/stats`),
+  /** Impersonate a school: short-lived token with imp claim (plan #3) */
+  impersonate: (id: string) =>
+    request<ImpersonateResult>(`/admin/tenants/${id}/impersonate`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  stopImpersonation: (id: string) =>
+    request<{ message: string }>(`/admin/tenants/${id}/impersonate/stop`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  validate: (id: string, payload: { validatedBy: string }) =>
+    request<{ success: boolean; data?: unknown }>(`/admin/tenants/${id}/validate`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  deactivate: (id: string, reason?: string) =>
+    request<{ message: string }>(`/admin/tenants/${id}/deactivate`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  reactivate: (id: string) =>
+    request<{ message: string }>(`/admin/tenants/${id}/reactivate`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  markSubscriptionPaid: (id: string) =>
+    request<{
+      id: string;
+      subscription: string;
+      subscriptionTone: string;
+      subscriptionDetail: string;
+    }>(`/admin/tenants/${id}/subscription`, {
+      method: "PATCH",
+      body: JSON.stringify({ action: "mark_paid" }),
+    }),
+};
+
+export interface TenantListCounts {
+  all: number;
+  active: number;
+  pending: number;
+  suspended: number;
+  trial: number;
+  overdue: number;
+}
+
+export interface PaginatedTenants {
+  items: TenantSummary[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    counts: TenantListCounts;
+  };
+}
+
+export interface TenantSummary {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  commune: string | null;
+  type: string | null;
+  status: string;
+  createdAt: string;
+  validatedAt?: string | null;
+  validatedBy?: string | null;
+  subscriptionStatus?: string;
+  subscriptionPaidAt?: string | null;
+  /** From listTenants _count.users */
+  _count?: { users: number };
+}
+
+export interface SchoolStats {
+  users: number;
+  usersActive: number;
+  students: number | null;
+  documents: { provided: string[]; missing: string[] };
+  note: string;
+}
+
+export interface ImpersonateResult {
+  accessToken: string;
+  tenant: { id: string; name: string };
+}
+
+export interface TenantUser {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+  isActive: boolean;
+  userRoles: { role: { name: string } }[];
+}
+
+export interface DemoRequest {
+  id: string;
+  contactName: string;
+  schoolName: string;
+  phone: string;
+  email: string | null;
+  studentRange: string | null;
+  message: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export const demoRequestsApi = {
+  getAll: () => request<DemoRequest[]>(`/admin/demo-requests`),
+  updateStatus: (id: string, status: string) =>
+    request<DemoRequest>(`/admin/demo-requests/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
     }),
 };

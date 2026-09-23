@@ -67,6 +67,11 @@ export const env = {
   BREVO_SENDER_EMAIL: validateBrevoConfig('BREVO_SENDER_EMAIL', process.env.BREVO_SENDER_EMAIL, isProd),
   BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME || 'EduGoma Security',
 
+  // WhatsApp Meta Cloud API (optional — mock log if missing)
+  WHATSAPP_API_TOKEN: process.env.WHATSAPP_API_TOKEN,
+  WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
+  WHATSAPP_API_VERSION: process.env.WHATSAPP_API_VERSION || 'v21.0',
+
   // Password history
   AUTH_PASSWORD_HISTORY_LIMIT: validatePasswordHistoryLimit('AUTH_PASSWORD_HISTORY_LIMIT', process.env.AUTH_PASSWORD_HISTORY_LIMIT, 5),
 };
