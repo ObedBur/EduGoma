@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AlertService } from '../alert.service';
 import { PrismaService } from '../../../core/prisma/prisma.service';
+import { AlertService } from '../alert.service';
 
 describe('AlertService', () => {
   let service: AlertService;
@@ -20,10 +20,7 @@ describe('AlertService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AlertService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [AlertService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     service = module.get<AlertService>(AlertService);
@@ -36,7 +33,15 @@ describe('AlertService', () => {
   describe('getPriorityAlerts', () => {
     it('should return unresolved alerts', async () => {
       prisma.alert.findMany.mockResolvedValue([
-        { id: 'a1', type: 'SECURITY', severity: 'critical', title: 'Brute force', message: '50 tentatives', source: 'Auth', createdAt: new Date() },
+        {
+          id: 'a1',
+          type: 'SECURITY',
+          severity: 'critical',
+          title: 'Brute force',
+          message: '50 tentatives',
+          source: 'Auth',
+          createdAt: new Date(),
+        },
       ]);
 
       const result = await service.getPriorityAlerts(10);
@@ -51,9 +56,7 @@ describe('AlertService', () => {
     it('should respect limit param', async () => {
       prisma.alert.findMany.mockResolvedValue([]);
       await service.getPriorityAlerts(5);
-      expect(prisma.alert.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ take: 5 }),
-      );
+      expect(prisma.alert.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 5 }));
     });
 
     it('should handle empty alerts', async () => {

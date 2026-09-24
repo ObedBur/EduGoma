@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TicketService } from '../ticket.service';
 import { PrismaService } from '../../../core/prisma/prisma.service';
+import { TicketService } from '../ticket.service';
 
 describe('TicketService', () => {
   let service: TicketService;
@@ -20,10 +20,7 @@ describe('TicketService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        TicketService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [TicketService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     service = module.get<TicketService>(TicketService);
@@ -36,7 +33,19 @@ describe('TicketService', () => {
   describe('getTickets', () => {
     it('should return tickets with correct structure', async () => {
       prisma.ticket.findMany.mockResolvedValue([
-        { id: 't1', title: 'Import élèves', description: 'Aide import', category: 'integration', status: 'open', priority: 'urgent', schoolName: 'Collège Boboto', schoolId: 'EDU-001', requester: 'Aline', createdAt: new Date(), updatedAt: new Date() },
+        {
+          id: 't1',
+          title: 'Import élèves',
+          description: 'Aide import',
+          category: 'integration',
+          status: 'open',
+          priority: 'urgent',
+          schoolName: 'Collège Boboto',
+          schoolId: 'EDU-001',
+          requester: 'Aline',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       ]);
 
       const result = await service.getTickets();
@@ -63,9 +72,7 @@ describe('TicketService', () => {
     it('should respect limit', async () => {
       prisma.ticket.findMany.mockResolvedValue([]);
       await service.getTickets(undefined, undefined, 5);
-      expect(prisma.ticket.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ take: 5 }),
-      );
+      expect(prisma.ticket.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 5 }));
     });
 
     it('should handle empty tickets', async () => {
@@ -78,10 +85,10 @@ describe('TicketService', () => {
   describe('getTicketStats', () => {
     it('should return ticket statistics', async () => {
       prisma.ticket.count
-        .mockResolvedValueOnce(10)  // total
-        .mockResolvedValueOnce(4)   // open
-        .mockResolvedValueOnce(3)   // in_progress
-        .mockResolvedValueOnce(2);  // urgent
+        .mockResolvedValueOnce(10) // total
+        .mockResolvedValueOnce(4) // open
+        .mockResolvedValueOnce(3) // in_progress
+        .mockResolvedValueOnce(2); // urgent
 
       const result = await service.getTicketStats();
       expect(result).toEqual({ total: 10, open: 4, inProgress: 3, urgent: 2 });

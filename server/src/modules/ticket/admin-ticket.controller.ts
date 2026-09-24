@@ -1,8 +1,8 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
-import { TicketService } from './ticket.service';
 import { TicketQueryDto } from './dto/ticket-query.dto';
+import { TicketService } from './ticket.service';
 
 @Controller('admin/support')
 @UseGuards(JwtAuthGuard, SuperAdminGuard)

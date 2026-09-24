@@ -1,12 +1,5 @@
 import { Type } from 'class-transformer';
-import {
-  IsIn,
-  IsInt,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 const SORT_FIELDS = ['name', 'createdAt', 'validatedAt', 'status', 'commune'] as const;
 const ORDERS = ['asc', 'desc'] as const;
@@ -51,12 +44,7 @@ export class ListTenantsQueryDto {
 
   @IsOptional()
   @IsIn(['all', 'trial', 'active', 'overdue', 'suspended'])
-  subscription?:
-    | 'all'
-    | 'trial'
-    | 'active'
-    | 'overdue'
-    | 'suspended' = 'all';
+  subscription?: 'all' | 'trial' | 'active' | 'overdue' | 'suspended' = 'all';
 }
 
 export class ListPageQueryDto {
@@ -87,12 +75,7 @@ export class ListPageQueryDto {
 
   @IsOptional()
   @IsIn(['all', 'trial', 'active', 'overdue', 'suspended'])
-  subscription?:
-    | 'all'
-    | 'trial'
-    | 'active'
-    | 'overdue'
-    | 'suspended';
+  subscription?: 'all' | 'trial' | 'active' | 'overdue' | 'suspended';
 
   @IsOptional()
   @IsString()

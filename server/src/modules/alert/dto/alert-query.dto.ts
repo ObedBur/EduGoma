@@ -1,5 +1,5 @@
-import { IsOptional, Min, Max, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class AlertQueryDto {
   @IsOptional()

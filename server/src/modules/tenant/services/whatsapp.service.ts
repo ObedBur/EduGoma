@@ -4,6 +4,8 @@ import { env } from '../../../config/env';
 export interface WelcomeWhatsAppPayload {
   schoolName: string;
   phone: string;
+  setupUrl?: string;
+  setupTtlMinutes?: number;
 }
 
 /**
@@ -30,10 +32,7 @@ export class WhatsAppService {
     }
 
     if (!env.WHATSAPP_API_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID) {
-      this.logger.log(
-        `[WHATSAPP MOCK] To: ${to}\n` +
-          `[WHATSAPP MOCK] Message:\n${message}`,
-      );
+      this.logger.log(`[WHATSAPP MOCK] To: ${to}\n` + `[WHATSAPP MOCK] Message:\n${message}`);
       return true;
     }
 
@@ -74,14 +73,17 @@ export class WhatsAppService {
   }
 
   private buildWelcomeMessage(payload: WelcomeWhatsAppPayload): string {
-    const accessUrl = `${env.CLIENT_URL}/login`;
+    const loginUrl = payload.setupUrl || `${env.CLIENT_URL}/login`;
+    const ttl = payload.setupTtlMinutes ?? Math.round(env.SETUP_LINK_TTL_SECONDS / 60);
 
     return `Bonjour ! 🎉
 
 Votre établissement *${payload.schoolName}* a été validé avec succès sur la plateforme EduGoma.
 
-🔗 Accès à votre espace : ${accessUrl}
-📱 Identifiant de connexion : ${payload.phone}
+🔗 Créer votre mot de passe (valable ${ttl} min) :
+${loginUrl}
+
+Ce lien est à usage unique. Après votre premier mot de passe, connectez-vous sur ${env.CLIENT_URL}/login
 
 Bienvenue dans l'écosystème scolaire connecté du Nord-Kivu !
 Pour toute assistance, répondez directement à ce message.`;

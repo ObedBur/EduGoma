@@ -1,7 +1,7 @@
-import { Module, Global } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
-import { MonitoringService } from './monitoring.service';
 import { AlertService } from './alert.service';
+import { MonitoringService } from './monitoring.service';
 
 @Global()
 @Module({

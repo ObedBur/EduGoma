@@ -1,5 +1,5 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import logger from '../../config/logger';
 
 @Injectable()
@@ -9,7 +9,13 @@ export class LoggerMiddleware implements NestMiddleware {
     res.on('finish', () => {
       const ms = Date.now() - start;
       const tenantId = (req as any).tenantId || '-';
-      logger.info({ method: req.method, url: req.originalUrl, status: res.statusCode, ms, tenantId });
+      logger.info({
+        method: req.method,
+        url: req.originalUrl,
+        status: res.statusCode,
+        ms,
+        tenantId,
+      });
     });
     next();
   }

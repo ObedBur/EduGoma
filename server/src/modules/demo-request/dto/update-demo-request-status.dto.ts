@@ -1,11 +1,6 @@
 import { IsIn, IsNotEmpty, IsString } from 'class-validator';
 
-export const DEMO_REQUEST_STATUSES = [
-  'nouveau',
-  'contacté',
-  'converti',
-  'clôturé',
-] as const;
+export const DEMO_REQUEST_STATUSES = ['nouveau', 'contacté', 'converti', 'clôturé'] as const;
 
 export type DemoRequestStatus = (typeof DEMO_REQUEST_STATUSES)[number];
 

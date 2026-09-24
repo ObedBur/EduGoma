@@ -1,17 +1,17 @@
 import {
+  Body,
   Controller,
   Get,
-  Patch,
-  Param,
-  Body,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
   UseGuards,
 } from '@nestjs/common';
-import { DemoRequestService } from './demo-request.service';
-import { UpdateDemoRequestStatusDto } from './dto/update-demo-request-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
+import { DemoRequestService } from './demo-request.service';
+import { UpdateDemoRequestStatusDto } from './dto/update-demo-request-status.dto';
 
 /**
  * ADMIN Demo Request Controller

@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../core/prisma/prisma.service';
 
 /**
@@ -39,8 +39,7 @@ export class SuperAdminGuard implements CanActivate {
     }
 
     const isSuperAdmin = userWithRoles.userRoles.some(
-      (userRole) =>
-        userRole.role.level === 1 || userRole.role.name === 'Super Admin',
+      (userRole) => userRole.role.level === 1 || userRole.role.name === 'Super Admin',
     );
 
     if (!isSuperAdmin) {

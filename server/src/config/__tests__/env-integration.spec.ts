@@ -1,16 +1,16 @@
 import {
-  validateSecret,
-  validateUrl,
-  validateHttpsUrl,
-  isKnownDefault,
-  isWeakSecret,
   KNOWN_DEFAULTS,
+  isKnownDefault,
   isProduction,
+  isWeakSecret,
+  validateHttpsUrl,
+  validateLockoutConfig,
+  validateMonitorThreshold,
   validateRateLimit,
   validateRateLimitTtl,
-  validateLockoutConfig,
+  validateSecret,
   validateTokenExpiry,
-  validateMonitorThreshold,
+  validateUrl,
 } from '../validation';
 
 describe('KNOWN_DEFAULTS', () => {
@@ -108,7 +108,11 @@ describe('validateSecret', () => {
   });
 
   it('accepts valid secret in production', () => {
-    const result = validateSecret('TEST_SECRET', 'StrongSecret123!WithAllRequirementsMet', isProduction);
+    const result = validateSecret(
+      'TEST_SECRET',
+      'StrongSecret123!WithAllRequirementsMet',
+      isProduction,
+    );
     expect(result).toBe('StrongSecret123!WithAllRequirementsMet');
   });
 
@@ -139,7 +143,9 @@ describe('validateUrl', () => {
   it('accepts valid URLs', () => {
     expect(validateUrl('TEST_URL', 'http://localhost:3000')).toBe('http://localhost:3000');
     expect(validateUrl('TEST_URL', 'https://example.com')).toBe('https://example.com');
-    expect(validateUrl('TEST_URL', 'https://sub.domain.com:8080/path')).toBe('https://sub.domain.com:8080/path');
+    expect(validateUrl('TEST_URL', 'https://sub.domain.com:8080/path')).toBe(
+      'https://sub.domain.com:8080/path',
+    );
   });
 });
 
@@ -235,13 +241,21 @@ describe('validateRateLimitTtl', () => {
 
 describe('validateHttpsUrl', () => {
   it('accepts valid HTTPS URL in production', () => {
-    expect(validateHttpsUrl('TEST_URL', 'https://app.example.com', true)).toBe('https://app.example.com');
-    expect(validateHttpsUrl('TEST_URL', 'https://sub.domain.com:8443/path', true)).toBe('https://sub.domain.com:8443/path');
+    expect(validateHttpsUrl('TEST_URL', 'https://app.example.com', true)).toBe(
+      'https://app.example.com',
+    );
+    expect(validateHttpsUrl('TEST_URL', 'https://sub.domain.com:8443/path', true)).toBe(
+      'https://sub.domain.com:8443/path',
+    );
   });
 
   it('accepts valid HTTP URL in development', () => {
-    expect(validateHttpsUrl('TEST_URL', 'http://localhost:3000', false)).toBe('http://localhost:3000');
-    expect(validateHttpsUrl('TEST_URL', 'http://127.0.0.1:5173', false)).toBe('http://127.0.0.1:5173');
+    expect(validateHttpsUrl('TEST_URL', 'http://localhost:3000', false)).toBe(
+      'http://localhost:3000',
+    );
+    expect(validateHttpsUrl('TEST_URL', 'http://127.0.0.1:5173', false)).toBe(
+      'http://127.0.0.1:5173',
+    );
   });
 
   it('rejects HTTP URL in production', () => {

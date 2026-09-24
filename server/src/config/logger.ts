@@ -25,8 +25,8 @@ if (process.env.NODE_ENV !== 'production') {
       target: pinoPrettyPath,
       options: {
         // Options de formatage
-        colorize: true,     // Active la coloration des logs
-        singleLine: true,   // Affiche les logs sur une seule ligne (plus compact)
+        colorize: true, // Active la coloration des logs
+        singleLine: true, // Affiche les logs sur une seule ligne (plus compact)
         // timeStampKey: 'time', // Décommenter si vous voulez un horodatage spécifique
       },
     };
@@ -46,7 +46,7 @@ if (process.env.NODE_ENV !== 'production') {
 const logger: Logger = pino({
   // Utilise le transport que nous avons défini ci-dessus (sera undefined en production)
   transport: transportTarget,
-  
+
   // Définit le niveau minimum de log (par défaut 'info').
   // Ceci permet de filtrer les logs. Ex: 'debug', 'info', 'warn', 'error'.
   level: process.env.LOG_LEVEL || 'info',

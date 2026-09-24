@@ -39,6 +39,7 @@ model Tenant {
   tickets            Ticket[]
   notificationLogs   NotificationLog[]
   payments           Payment[]
+  setupTokens        SetupToken[]
 }
 
 model User {
@@ -50,6 +51,8 @@ model User {
   firstName String?
   lastName  String?
   isActive  Boolean  @default(true)
+  /// true tant que le compte n'a pas choisi son mot de passe via /set-password
+  mustChangePassword Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -61,6 +64,25 @@ model User {
   loginAttempts         LoginAttempt[]
   passwordResetTokens   PasswordResetToken[]
   passwordHistory       PasswordHistory[]
+  setupTokens           SetupToken[]
+}
+
+/// Lien de création de mot de passe (usage unique, expiration courte)
+model SetupToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  tenantId  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([expiresAt])
 }
 
 model Role {

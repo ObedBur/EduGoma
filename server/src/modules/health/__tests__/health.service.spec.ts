@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HealthService } from '../health.service';
 import { PrismaService } from '../../../core/prisma/prisma.service';
+import { HealthService } from '../health.service';
 
 describe('HealthService', () => {
   let service: HealthService;
@@ -18,10 +18,7 @@ describe('HealthService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        HealthService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [HealthService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     service = module.get<HealthService>(HealthService);

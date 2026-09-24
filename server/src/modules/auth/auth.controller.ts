@@ -1,17 +1,18 @@
-import { Controller, Post, Get, Body, Req, Res, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
+import { env } from '../../config/env';
 import { AuthService } from './auth.service';
-import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
-import { RefreshDto } from './dto/refresh.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import { Public } from './decorators/auth.decorators';
 import { CurrentUserId } from './decorators/user.decorator';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
+import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SetupPasswordDto } from './dto/setup-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { env } from '../../config/env';
 
 @Controller('auth')
 export class AuthController {
@@ -202,6 +203,36 @@ export class AuthController {
     const userAgent = req.get('user-agent') ?? 'unknown';
 
     const result = await this.authService.changePassword(userId, dto, ip, userAgent);
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  @Public()
+  @Get('setup/:token')
+  @HttpCode(HttpStatus.OK)
+  async getSetupInfo(@Param('token') token: string) {
+    const data = await this.authService.getSetupInfo(token);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Public()
+  @Post('setup/:token')
+  @HttpCode(HttpStatus.OK)
+  async completeSetup(
+    @Param('token') token: string,
+    @Body() dto: SetupPasswordDto,
+    @Req() req: Request,
+  ) {
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    const result = await this.authService.completeSetup(token, dto, ip, userAgent);
 
     return {
       success: true,

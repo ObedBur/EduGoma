@@ -1,12 +1,21 @@
-import { IsEmail, IsString, IsNotEmpty, MinLength, Matches, ValidateIf, IsOptional, IsBoolean } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 
 export class LoginDto {
-  @ValidateIf(o => !o.phone)
+  @ValidateIf((o) => !o.phone)
   @IsEmail({}, { message: 'Email must be valid' })
   @IsNotEmpty({ message: 'Email or phone is required' })
   email?: string;
 
-  @ValidateIf(o => !o.email)
+  @ValidateIf((o) => !o.email)
   @IsString()
   @IsNotEmpty({ message: 'Email or phone is required' })
   @Matches(/^\+?[1-9]\d{1,14}$/, { message: 'Phone must be a valid international format' })

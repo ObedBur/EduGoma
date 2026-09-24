@@ -1,7 +1,7 @@
-import { Controller, Get, Param, Req, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Param, Req } from '@nestjs/common';
 import { Request } from 'express';
-import { TenantService } from './tenant.service';
 import { Public } from '../auth/decorators/auth.decorators';
+import { TenantService } from './tenant.service';
 
 /**
  * PUBLIC Tenant Controller

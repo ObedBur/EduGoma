@@ -12,10 +12,7 @@ export class TicketService {
 
     return this.prisma.ticket.findMany({
       where,
-      orderBy: [
-        { priority: 'asc' },
-        { createdAt: 'desc' },
-      ],
+      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
       take: limit,
       select: {
         id: true,

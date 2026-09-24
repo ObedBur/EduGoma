@@ -65,10 +65,10 @@ export class HealthService {
 
   private getMemoryUsage() {
     const mem = process.memoryUsage();
-    const heapUsed = Math.round(mem.heapUsed / 1024 / 1024 * 10) / 10;
-    const heapTotal = Math.round(mem.heapTotal / 1024 / 1024 * 10) / 10;
-    const rss = Math.round(mem.rss / 1024 / 1024 * 10) / 10;
-    const external = Math.round(mem.external / 1024 / 1024 * 10) / 10;
+    const heapUsed = Math.round((mem.heapUsed / 1024 / 1024) * 10) / 10;
+    const heapTotal = Math.round((mem.heapTotal / 1024 / 1024) * 10) / 10;
+    const rss = Math.round((mem.rss / 1024 / 1024) * 10) / 10;
+    const external = Math.round((mem.external / 1024 / 1024) * 10) / 10;
     const usagePercent = Math.round((heapUsed / heapTotal) * 100 * 10) / 10;
 
     return { heapUsed, heapTotal, rss, external, usagePercent };

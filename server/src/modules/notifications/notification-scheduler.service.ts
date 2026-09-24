@@ -1,13 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { env } from '../../config/env';
 import { PrismaService } from '../../core/prisma/prisma.service';
+import { AlertService } from '../alert/alert.service';
 import { EmailService } from '../tenant/services/email.service';
 import { WhatsAppService } from '../tenant/services/whatsapp.service';
-import { AlertService } from '../alert/alert.service';
-import { env } from '../../config/env';
 
 type Channel = 'email' | 'whatsapp' | 'alert' | 'system';
-type Step = 'j1_guide' | 'j3_login_reminder' | 'j7_import' | 'j14_no_students' | 'j27_trial' | 'j30_suspend';
+type Step =
+  | 'j1_guide'
+  | 'j3_login_reminder'
+  | 'j7_import'
+  | 'j14_no_students'
+  | 'j27_trial'
+  | 'j30_suspend';
 
 interface TenantContext {
   id: string;
@@ -94,7 +100,9 @@ export class NotificationSchedulerService {
     let sent = 0;
 
     if (ctx.day >= 1) {
-      sent += (await this.runStep(ctx, 'j1_guide', 'email', () => this.sendGuideEmail(ctx))) ? 1 : 0;
+      sent += (await this.runStep(ctx, 'j1_guide', 'email', () => this.sendGuideEmail(ctx)))
+        ? 1
+        : 0;
     }
 
     if (ctx.day >= 3) {
@@ -109,7 +117,9 @@ export class NotificationSchedulerService {
     }
 
     if (ctx.day >= 7) {
-      sent += (await this.runStep(ctx, 'j7_import', 'email', () => this.sendImportEmail(ctx))) ? 1 : 0;
+      sent += (await this.runStep(ctx, 'j7_import', 'email', () => this.sendImportEmail(ctx)))
+        ? 1
+        : 0;
     }
 
     if (ctx.day >= 14) {
@@ -124,7 +134,9 @@ export class NotificationSchedulerService {
     }
 
     if (ctx.day >= 27) {
-      sent += (await this.runStep(ctx, 'j27_trial', 'email', () => this.sendTrialEmail(ctx))) ? 1 : 0;
+      sent += (await this.runStep(ctx, 'j27_trial', 'email', () => this.sendTrialEmail(ctx)))
+        ? 1
+        : 0;
       sent += (await this.runStep(ctx, 'j27_trial', 'whatsapp', () => this.sendTrialWhatsApp(ctx)))
         ? 1
         : 0;
@@ -132,9 +144,7 @@ export class NotificationSchedulerService {
 
     if (ctx.day >= 30) {
       // #43 : suspendre si pas d'abonnement payé ; log anti-doublon
-      sent += (await this.runStep(ctx, 'j30_suspend', 'system', () =>
-        this.handleJ30Suspend(ctx),
-      ))
+      sent += (await this.runStep(ctx, 'j30_suspend', 'system', () => this.handleJ30Suspend(ctx)))
         ? 1
         : 0;
     }
@@ -316,11 +326,7 @@ export class NotificationSchedulerService {
        </ol>
        <p><a href="${loginUrl}" style="background:#102d48;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;">Accéder à mon espace</a></p>`,
     );
-    return this.emailService.sendRawEmail(
-      ctx.email,
-      `Guide de démarrage — ${ctx.name}`,
-      html,
-    );
+    return this.emailService.sendRawEmail(ctx.email, `Guide de démarrage — ${ctx.name}`, html);
   }
 
   private async sendLoginReminder(ctx: TenantContext): Promise<boolean> {
@@ -350,11 +356,7 @@ Une question ? Répondez à ce message.`;
        </ol>
        <p>Besoin d'aide ? Contactez le support EduGoma.</p>`,
     );
-    return this.emailService.sendRawEmail(
-      ctx.email,
-      `Importer vos élèves — ${ctx.name}`,
-      html,
-    );
+    return this.emailService.sendRawEmail(ctx.email, `Importer vos élèves — ${ctx.name}`, html);
   }
 
   private async createNoStudentsAlert(ctx: TenantContext): Promise<boolean> {

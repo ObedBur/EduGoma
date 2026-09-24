@@ -25,7 +25,11 @@ export function isWeakSecret(value: string): boolean {
   return false;
 }
 
-export function validateSecret(name: string, value: string | undefined, isProduction: boolean): string {
+export function validateSecret(
+  name: string,
+  value: string | undefined,
+  isProduction: boolean,
+): string {
   if (!value) {
     throw new Error(`Configuration error: ${name} is required but not set`);
   }
@@ -56,7 +60,11 @@ export function isProduction(): boolean {
   return process.env.NODE_ENV === 'production';
 }
 
-export function validateRateLimit(name: string, value: string | undefined, defaultValue: number): number {
+export function validateRateLimit(
+  name: string,
+  value: string | undefined,
+  defaultValue: number,
+): number {
   if (!value) return defaultValue;
   const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed <= 0) {
@@ -65,7 +73,11 @@ export function validateRateLimit(name: string, value: string | undefined, defau
   return parsed;
 }
 
-export function validateRateLimitTtl(name: string, value: string | undefined, defaultValue: number): number {
+export function validateRateLimitTtl(
+  name: string,
+  value: string | undefined,
+  defaultValue: number,
+): number {
   if (!value) return defaultValue;
   const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed <= 0) {
@@ -74,7 +86,11 @@ export function validateRateLimitTtl(name: string, value: string | undefined, de
   return parsed;
 }
 
-export function validateHttpsUrl(name: string, value: string | undefined, isProduction: boolean): string {
+export function validateHttpsUrl(
+  name: string,
+  value: string | undefined,
+  isProduction: boolean,
+): string {
   if (!value) {
     throw new Error(`Configuration error: ${name} is required but not set`);
   }
@@ -90,7 +106,11 @@ export function validateHttpsUrl(name: string, value: string | undefined, isProd
   }
 }
 
-export function validateLockoutConfig(name: string, value: string | undefined, defaultValue: number): number {
+export function validateLockoutConfig(
+  name: string,
+  value: string | undefined,
+  defaultValue: number,
+): number {
   if (!value) return defaultValue;
   const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed <= 0) {
@@ -99,7 +119,11 @@ export function validateLockoutConfig(name: string, value: string | undefined, d
   return parsed;
 }
 
-export function validateTokenExpiry(name: string, value: string | undefined, defaultValue: number): number {
+export function validateTokenExpiry(
+  name: string,
+  value: string | undefined,
+  defaultValue: number,
+): number {
   if (!value) return defaultValue;
   const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed <= 0) {
@@ -108,7 +132,11 @@ export function validateTokenExpiry(name: string, value: string | undefined, def
   return parsed;
 }
 
-export function validateMonitorThreshold(name: string, value: string | undefined, defaultValue: number): number {
+export function validateMonitorThreshold(
+  name: string,
+  value: string | undefined,
+  defaultValue: number,
+): number {
   if (!value) return defaultValue;
   const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed <= 0) {
@@ -117,7 +145,11 @@ export function validateMonitorThreshold(name: string, value: string | undefined
   return parsed;
 }
 
-export function validateBrevoConfig(name: string, value: string | undefined, isProduction: boolean): string {
+export function validateBrevoConfig(
+  name: string,
+  value: string | undefined,
+  isProduction: boolean,
+): string {
   if (!value) {
     if (isProduction) {
       throw new Error(`Configuration error: ${name} is required in production`);
@@ -127,7 +159,11 @@ export function validateBrevoConfig(name: string, value: string | undefined, isP
   return value;
 }
 
-export function validatePasswordHistoryLimit(name: string, value: string | undefined, defaultValue: number): number {
+export function validatePasswordHistoryLimit(
+  name: string,
+  value: string | undefined,
+  defaultValue: number,
+): number {
   if (!value) return defaultValue;
   const parsed = Number.parseInt(value, 10);
   if (isNaN(parsed) || parsed < 0) {

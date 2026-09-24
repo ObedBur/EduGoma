@@ -1,19 +1,24 @@
-import { 
-  Injectable, 
-  ConflictException, 
-  NotFoundException,
+import {
   BadRequestException,
-  UnauthorizedException 
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
+import { env } from '../../config/env';
 import { PrismaService } from '../../core/prisma/prisma.service';
-import { SmsService } from './services/sms.service';
-import { EmailService } from './services/email.service';
-import { WhatsAppService } from './services/whatsapp.service';
-import { AuditService, AuditAction } from '../auth/services/audit.service';
-import { RegisterTenantDto } from './dto/register-tenant.dto';
-import { ValidateTenantDto, RejectTenantDto } from './dto/admin-actions.dto';
-import { ListTenantsQueryDto } from './dto/list-tenants.query';
 import { getTenantCounts } from '../../stats/tenant-counts';
+import { AuditAction, AuditService } from '../auth/services/audit.service';
+import { buildSetupUrl, generateSetupTokenPlain, hashSetupToken } from '../auth/utils/setup-token';
+import { RejectTenantDto, ValidateTenantDto } from './dto/admin-actions.dto';
+import { ListTenantsQueryDto } from './dto/list-tenants.query';
+import { RegisterTenantDto } from './dto/register-tenant.dto';
+import { EmailService } from './services/email.service';
+import { SmsService } from './services/sms.service';
+import { WhatsAppService } from './services/whatsapp.service';
+
+const BCRYPT_ROUNDS = 12;
 
 const TENANT_LIST_SELECT = {
   id: true,
@@ -107,14 +112,13 @@ export class TenantService {
 
     // Log action using AuditService
     const actor = actorId || 'system';
-    await this.auditService.logTenantCreated(
-      actor,
-      tenant.id,
-      tenant.id,
-      ip,
-      userAgent,
-      { phone: dto.phone, name: dto.name, email: dto.email, commune: dto.commune, type: dto.type },
-    );
+    await this.auditService.logTenantCreated(actor, tenant.id, tenant.id, ip, userAgent, {
+      phone: dto.phone,
+      name: dto.name,
+      email: dto.email,
+      commune: dto.commune,
+      type: dto.type,
+    });
 
     // Also log to TenantLog for backward compatibility
     await this.logTenantAction(tenant.id, 'created', ip, userAgent, {
@@ -123,7 +127,10 @@ export class TenantService {
     });
 
     // Send notification SMS (optional)
-    await this.smsService.sendVerificationCode(dto.phone, `Votre école "${dto.name}" a été enregistrée. En attente de validation.`);
+    await this.smsService.sendVerificationCode(
+      dto.phone,
+      `Votre école "${dto.name}" a été enregistrée. En attente de validation.`,
+    );
 
     return {
       message: 'School created successfully. Waiting for admin validation.',
@@ -261,7 +268,7 @@ export class TenantService {
    */
   async getPending() {
     return this.prisma.tenant.findMany({
-      where: { 
+      where: {
         status: 'pending',
       },
       select: {
@@ -498,13 +505,14 @@ export class TenantService {
 
   /**
    * ADMIN: Validate a tenant (approve)
+   * Creates school admin user + one-time setup link + notifies SMS/WhatsApp/email.
    */
   async validate(
-    tenantId: string, 
-    dto: ValidateTenantDto, 
-    ip?: string, 
+    tenantId: string,
+    dto: ValidateTenantDto,
+    ip?: string,
     userAgent?: string,
-    actorId?: string
+    actorId?: string,
   ) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -530,36 +538,16 @@ export class TenantService {
 
     // Log action using AuditService
     const actor = actorId || dto.validatedBy || 'admin';
-    await this.auditService.logTenantApproved(
-      actor,
-      tenant.id,
-      tenantId,
-      ip,
-      userAgent,
-      { validatedBy: dto.validatedBy },
-    );
+    await this.auditService.logTenantApproved(actor, tenant.id, tenantId, ip, userAgent, {
+      validatedBy: dto.validatedBy,
+    });
 
     // Also log to TenantLog for backward compatibility
     await this.logTenantAction(tenantId, 'validated', ip, userAgent, {
       validatedBy: dto.validatedBy,
     });
 
-    // Send welcome SMS
-    await this.smsService.sendWelcomeMessage(tenant.phone, tenant.name);
-
-    // Send welcome email (#49) — best-effort, never blocks validation
-    await this.emailService.sendWelcomeEmail({
-      schoolName: tenant.name,
-      phone: tenant.phone,
-      email: tenant.email ?? '',
-      commune: tenant.commune,
-    });
-
-    // Send welcome WhatsApp (#48) — best-effort, never blocks validation
-    await this.whatsappService.sendWelcomeMessage({
-      schoolName: tenant.name,
-      phone: tenant.phone,
-    });
+    const access = await this.issueSchoolAccess(updated);
 
     return {
       message: `School "${tenant.name}" approved successfully`,
@@ -569,18 +557,193 @@ export class TenantService {
         status: updated.status,
         validatedAt: updated.validatedAt,
       },
+      notifications: access.notifications,
+      setupLinkExpiresAt: access.expiresAt,
     };
+  }
+
+  /**
+   * ADMIN: Re-issue setup link + re-notify (idempotent for active schools)
+   */
+  async resendAccess(tenantId: string, ip?: string, userAgent?: string, actorId?: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+
+    if (!tenant) {
+      throw new NotFoundException('School not found');
+    }
+
+    if (tenant.status !== 'active') {
+      throw new BadRequestException('Only active schools can receive access links');
+    }
+
+    await this.logTenantAction(tenantId, 'access_resent', ip, userAgent, {
+      actorId: actorId || 'system',
+    });
+
+    const access = await this.issueSchoolAccess(tenant);
+
+    return {
+      message: `Access link re-sent for "${tenant.name}"`,
+      notifications: access.notifications,
+      setupLinkExpiresAt: access.expiresAt,
+    };
+  }
+
+  /**
+   * Ensure school admin user exists, create SetupToken, notify on 3 channels.
+   * Best-effort notifications — never throws after account is ready.
+   */
+  private async issueSchoolAccess(tenant: {
+    id: string;
+    name: string;
+    phone: string;
+    email: string | null;
+    commune: string | null;
+  }) {
+    const user = await this.ensureSchoolAdminUser(tenant);
+
+    // Revoke previous unused setup tokens
+    await this.prisma.setupToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    const tokenPlain = generateSetupTokenPlain();
+    const tokenHash = hashSetupToken(tokenPlain);
+    const ttlSeconds = env.SETUP_LINK_TTL_SECONDS;
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+    const setupTtlMinutes = Math.max(1, Math.round(ttlSeconds / 60));
+    const setupUrl = buildSetupUrl(env.CLIENT_URL, tokenPlain);
+
+    await this.prisma.setupToken.create({
+      data: {
+        tokenHash,
+        userId: user.id,
+        tenantId: tenant.id,
+        expiresAt,
+      },
+    });
+
+    // Force password change until setup completes
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { mustChangePassword: true },
+    });
+
+    const [smsOk, whatsappOk, emailOk] = await Promise.all([
+      this.smsService.sendWelcomeMessage(tenant.phone, tenant.name, setupUrl, setupTtlMinutes),
+      this.whatsappService.sendWelcomeMessage({
+        schoolName: tenant.name,
+        phone: tenant.phone,
+        setupUrl,
+        setupTtlMinutes,
+      }),
+      this.emailService.sendWelcomeEmail({
+        schoolName: tenant.name,
+        phone: tenant.phone,
+        email: tenant.email ?? '',
+        commune: tenant.commune,
+        setupUrl,
+        setupTtlMinutes,
+      }),
+    ]);
+
+    return {
+      expiresAt,
+      notifications: {
+        sms: smsOk,
+        whatsapp: whatsappOk,
+        email: Boolean(tenant.email) ? emailOk : null,
+      },
+    };
+  }
+
+  /**
+   * Find or create the school's Admin user (level-2 role).
+   * Initial password is a random hash never sent to anyone.
+   */
+  private async ensureSchoolAdminUser(tenant: {
+    id: string;
+    name: string;
+    phone: string;
+    email: string | null;
+  }) {
+    const or: Array<Record<string, string>> = [{ phone: tenant.phone }];
+    if (tenant.email) {
+      or.push({ email: tenant.email });
+    }
+
+    let user = await this.prisma.user.findFirst({
+      where: { tenantId: tenant.id, OR: or },
+    });
+
+    if (!user) {
+      // Prefer an existing platform user matching phone/email if any (avoid unique clash)
+      const clash = await this.prisma.user.findFirst({ where: { OR: or } });
+      if (clash) {
+        user = clash;
+        await this.prisma.user.update({
+          where: { id: clash.id },
+          data: { tenantId: tenant.id, isActive: true, mustChangePassword: true },
+        });
+      } else {
+        const placeholderSecret = `setup-${tenant.id}-${Date.now()}`;
+        const passwordHash = await bcrypt.hash(placeholderSecret, BCRYPT_ROUNDS);
+        user = await this.prisma.user.create({
+          data: {
+            email: tenant.email ?? null,
+            phone: tenant.phone,
+            password: passwordHash,
+            firstName: tenant.name,
+            lastName: 'Admin',
+            tenantId: tenant.id,
+            isActive: true,
+            mustChangePassword: true,
+          },
+        });
+      }
+    } else {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { isActive: true, mustChangePassword: true },
+      });
+    }
+
+    // Ensure Admin role (level 2) on this tenant
+    let adminRole = await this.prisma.role.findFirst({
+      where: { tenantId: tenant.id, name: 'Admin' },
+    });
+    if (!adminRole) {
+      adminRole = await this.prisma.role.create({
+        data: {
+          tenantId: tenant.id,
+          name: 'Admin',
+          level: 2,
+        },
+      });
+    }
+
+    const link = await this.prisma.userRole.findFirst({
+      where: { userId: user.id, roleId: adminRole.id },
+    });
+    if (!link) {
+      await this.prisma.userRole.create({
+        data: { userId: user.id, roleId: adminRole.id },
+      });
+    }
+
+    return user;
   }
 
   /**
    * ADMIN: Reject a tenant
    */
   async reject(
-    tenantId: string, 
-    dto: RejectTenantDto, 
-    ip?: string, 
+    tenantId: string,
+    dto: RejectTenantDto,
+    ip?: string,
     userAgent?: string,
-    actorId?: string
+    actorId?: string,
   ) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -602,14 +765,10 @@ export class TenantService {
 
     // Log action using AuditService
     const actor = actorId || dto.validatedBy || 'admin';
-    await this.auditService.logTenantRejected(
-      actor,
-      tenant.id,
-      tenantId,
-      ip,
-      userAgent,
-      { reason: dto.reason, rejectedBy: dto.validatedBy || 'Admin' },
-    );
+    await this.auditService.logTenantRejected(actor, tenant.id, tenantId, ip, userAgent, {
+      reason: dto.reason,
+      rejectedBy: dto.validatedBy || 'Admin',
+    });
 
     // Also log to TenantLog for backward compatibility
     await this.logTenantAction(tenantId, 'rejected', ip, userAgent, {
@@ -618,11 +777,7 @@ export class TenantService {
     });
 
     // Send rejection SMS
-    await this.smsService.sendRejectionMessage(
-      tenant.phone, 
-      tenant.name, 
-      dto.reason
-    );
+    await this.smsService.sendRejectionMessage(tenant.phone, tenant.name, dto.reason);
 
     return {
       message: `School "${tenant.name}" rejected`,
@@ -643,7 +798,7 @@ export class TenantService {
     actorId: string,
     ip?: string,
     userAgent?: string,
-    reason?: string
+    reason?: string,
   ) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -662,14 +817,9 @@ export class TenantService {
       data: { status: 'suspended' },
     });
 
-    await this.auditService.logTenantDeactivated(
-      actorId,
-      tenant.id,
-      tenantId,
-      ip,
-      userAgent,
-      { reason },
-    );
+    await this.auditService.logTenantDeactivated(actorId, tenant.id, tenantId, ip, userAgent, {
+      reason,
+    });
 
     await this.logTenantAction(tenantId, 'deactivated', ip, userAgent, { reason });
 
@@ -682,12 +832,7 @@ export class TenantService {
   /**
    * ADMIN: Reactivate a suspended tenant
    */
-  async reactivate(
-    tenantId: string,
-    actorId: string,
-    ip?: string,
-    userAgent?: string
-  ) {
+  async reactivate(tenantId: string, actorId: string, ip?: string, userAgent?: string) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
@@ -705,13 +850,7 @@ export class TenantService {
       data: { status: 'active' },
     });
 
-    await this.auditService.logTenantReactivated(
-      actorId,
-      tenant.id,
-      tenantId,
-      ip,
-      userAgent,
-    );
+    await this.auditService.logTenantReactivated(actorId, tenant.id, tenantId, ip, userAgent);
 
     await this.logTenantAction(tenantId, 'reactivated', ip, userAgent);
 
@@ -729,7 +868,7 @@ export class TenantService {
     dto: Partial<RegisterTenantDto>,
     actorId: string,
     ip?: string,
-    userAgent?: string
+    userAgent?: string,
   ) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -744,16 +883,13 @@ export class TenantService {
       data: dto,
     });
 
-    await this.auditService.logTenantUpdated(
-      actorId,
-      tenant.id,
-      tenantId,
-      ip,
-      userAgent,
-      { updatedFields: Object.keys(dto) },
-    );
+    await this.auditService.logTenantUpdated(actorId, tenant.id, tenantId, ip, userAgent, {
+      updatedFields: Object.keys(dto),
+    });
 
-    await this.logTenantAction(tenantId, 'updated', ip, userAgent, { updatedFields: Object.keys(dto) });
+    await this.logTenantAction(tenantId, 'updated', ip, userAgent, {
+      updatedFields: Object.keys(dto),
+    });
 
     return {
       message: `School "${tenant.name}" updated`,
@@ -773,12 +909,7 @@ export class TenantService {
    * ADMIN: Mark monthly subscription payment (#43)
    * POST/PATCH /admin/schools/:id/subscription { action: "mark_paid" }
    */
-  async markSubscriptionPaid(
-    tenantId: string,
-    actorId: string,
-    ip?: string,
-    userAgent?: string,
-  ) {
+  async markSubscriptionPaid(tenantId: string, actorId: string, ip?: string, userAgent?: string) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });

@@ -1,12 +1,12 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, Req, HttpCode, HttpStatus, UseGuards, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
-import { TenantService } from './tenant.service';
-import { RegisterTenantDto } from './dto/register-tenant.dto';
-import { ValidateTenantDto, RejectTenantDto } from './dto/admin-actions.dto';
-import { ListTenantsQueryDto, ListPageQueryDto } from './dto/list-tenants.query';
+import { CurrentUserId } from '../auth/decorators/user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
-import { CurrentUserId } from '../auth/decorators/user.decorator';
+import { RejectTenantDto, ValidateTenantDto } from './dto/admin-actions.dto';
+import { ListPageQueryDto, ListTenantsQueryDto } from './dto/list-tenants.query';
+import { RegisterTenantDto } from './dto/register-tenant.dto';
+import { TenantService } from './tenant.service';
 
 /**
  * ADMIN Tenant Controller
@@ -213,6 +213,28 @@ export class AdminTenantController {
     const userAgent = req.get('user-agent') ?? 'unknown';
 
     const result = await this.tenantService.validate(id, dto, ip, userAgent, actorId);
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  /**
+   * Re-issue setup password link + re-notify 3 channels
+   * POST /admin/tenants/:id/resend-access
+   */
+  @Post(':id/resend-access')
+  @HttpCode(HttpStatus.OK)
+  async resendAccess(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @CurrentUserId() actorId: string,
+  ) {
+    const ip = req.ip ?? req.socket.remoteAddress;
+    const userAgent = req.get('user-agent') ?? 'unknown';
+
+    const result = await this.tenantService.resendAccess(id, ip, userAgent, actorId);
 
     return {
       success: true,

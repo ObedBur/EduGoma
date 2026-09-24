@@ -64,15 +64,24 @@ Message: Your Education Goma verification code is: ${code}
   /**
    * Send welcome notification after validation
    */
-  async sendWelcomeMessage(phone: string, schoolName: string): Promise<boolean> {
+  async sendWelcomeMessage(
+    phone: string,
+    schoolName: string,
+    setupUrl?: string,
+    setupTtlMinutes?: number,
+  ): Promise<boolean> {
     try {
+      const ttl = setupTtlMinutes ?? Math.round(env.SETUP_LINK_TTL_SECONDS / 60);
+      const body = setupUrl
+        ? `EduGoma: ${schoolName} est validée. Créer votre mot de passe (valable ${ttl} min): ${setupUrl}`
+        : `EduGoma: ${schoolName} est validée. Connectez-vous sur ${env.CLIENT_URL}/login`;
+
       if (env.NODE_ENV !== 'production') {
         this.logger.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎉 WELCOME SMS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 To: ${phone}
-Message: Congratulations ${schoolName}! Your school has been approved on Education Goma.
-Login here: https://educationgoma.com
+Message: ${body}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
         return true;
       }
@@ -88,11 +97,7 @@ Login here: https://educationgoma.com
   /**
    * Send rejection notification
    */
-  async sendRejectionMessage(
-    phone: string, 
-    schoolName: string, 
-    reason: string
-  ): Promise<boolean> {
+  async sendRejectionMessage(phone: string, schoolName: string, reason: string): Promise<boolean> {
     try {
       if (env.NODE_ENV !== 'production') {
         this.logger.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━

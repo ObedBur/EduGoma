@@ -1,6 +1,6 @@
+import { faker } from '@faker-js/faker';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { faker } from '@faker-js/faker';
 
 faker.seed(42); // Seed pour des résultats reproductibles
 
@@ -123,28 +123,35 @@ async function main() {
     {
       name: 'Directeur',
       permissions: [
-        'class.create', 'teacher.create',
-        'student.view', 'class.view', 'teacher.view', 'grade.view', 'attendance.view', 'finance.view',
-        'grade.edit', 'attendance.edit',
+        'class.create',
+        'teacher.create',
+        'student.view',
+        'class.view',
+        'teacher.view',
+        'grade.view',
+        'attendance.view',
+        'finance.view',
+        'grade.edit',
+        'attendance.edit',
         'class.delete',
       ],
     },
     {
       name: 'Secrétaire',
       permissions: [
-        'student.create', 'class.create',
-        'student.view', 'class.view', 'attendance.view',
-        'student.edit', 'class.edit',
+        'student.create',
+        'class.create',
+        'student.view',
+        'class.view',
+        'attendance.view',
+        'student.edit',
+        'class.edit',
         'student.delete',
       ],
     },
     {
       name: 'Surveillant',
-      permissions: [
-        'attendance.create',
-        'student.view', 'class.view',
-        'attendance.edit',
-      ],
+      permissions: ['attendance.create', 'student.view', 'class.view', 'attendance.edit'],
     },
     {
       name: 'Enseignant',
@@ -211,9 +218,7 @@ async function main() {
         level: 1,
         tenantId: tenant.id,
         rolePermissions: {
-          create: [
-            { permission: { connect: { id: dbPermissions['all.manage'] } } },
-          ],
+          create: [{ permission: { connect: { id: dbPermissions['all.manage'] } } }],
         },
       },
     });
@@ -327,9 +332,7 @@ async function main() {
       subscriptionPaidAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
       validatedAt: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000),
       domain: 'virunga.edugoma.cd',
-      users: [
-        { email: 'directeur.virunga@edugoma.cd', firstName: 'Serge', lastName: 'Nsabimana' },
-      ],
+      users: [{ email: 'directeur.virunga@edugoma.cd', firstName: 'Serge', lastName: 'Nsabimana' }],
     },
     {
       name: 'Institut La Source Mugunga',
@@ -352,9 +355,7 @@ async function main() {
       subscriptionStatus: 'trial',
       validatedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
       domain: 'kayembe.edugoma.cd',
-      users: [
-        { email: 'directeur.kayembe@edugoma.cd', firstName: 'Didier', lastName: 'Nzuzi' },
-      ],
+      users: [{ email: 'directeur.kayembe@edugoma.cd', firstName: 'Didier', lastName: 'Nzuzi' }],
     },
   ];
 
@@ -418,11 +419,41 @@ async function main() {
   const alertCount = await prisma.alert.count();
   if (alertCount === 0) {
     const alertsData = [
-      { type: 'SECURITY', severity: 'critical', title: 'Tentatives de brute force', message: '50 tentatives de connexion échouées depuis IP 192.168.1.45 en 10 minutes', source: 'Auth Guard' },
-      { type: 'SYSTEM', severity: 'warning', title: 'Espace disque faible', message: 'Volume de stockage à 85% de capacité sur le noeud principal', source: 'Monitoring' },
-      { type: 'BILLING', severity: 'info', title: 'Paiement en attente', message: '3 écoles ont des factures impayées depuis plus de 30 jours', source: 'Billing' },
-      { type: 'USAGE', severity: 'warning', title: 'Pic d\'activité détecté', message: '320 connexions simultanées — 160% au-dessus de la normale', source: 'Analytics' },
-      { type: 'SECURITY', severity: 'critical', title: 'Token refresh compromis', message: 'Refresh token réutilisé depuis 2 IPs différentes', source: 'Auth Guard' },
+      {
+        type: 'SECURITY',
+        severity: 'critical',
+        title: 'Tentatives de brute force',
+        message: '50 tentatives de connexion échouées depuis IP 192.168.1.45 en 10 minutes',
+        source: 'Auth Guard',
+      },
+      {
+        type: 'SYSTEM',
+        severity: 'warning',
+        title: 'Espace disque faible',
+        message: 'Volume de stockage à 85% de capacité sur le noeud principal',
+        source: 'Monitoring',
+      },
+      {
+        type: 'BILLING',
+        severity: 'info',
+        title: 'Paiement en attente',
+        message: '3 écoles ont des factures impayées depuis plus de 30 jours',
+        source: 'Billing',
+      },
+      {
+        type: 'USAGE',
+        severity: 'warning',
+        title: "Pic d'activité détecté",
+        message: '320 connexions simultanées — 160% au-dessus de la normale',
+        source: 'Analytics',
+      },
+      {
+        type: 'SECURITY',
+        severity: 'critical',
+        title: 'Token refresh compromis',
+        message: 'Refresh token réutilisé depuis 2 IPs différentes',
+        source: 'Auth Guard',
+      },
     ];
 
     for (const alert of alertsData) {
@@ -442,10 +473,46 @@ async function main() {
   const ticketCount = await prisma.ticket.count();
   if (ticketCount === 0) {
     const ticketsData = [
-      { title: 'Assistance intégration ERP École', description: 'Demande d\'assistance import élèves pour Collège Boboto (Kinshasa)', category: 'integration', status: 'open', priority: 'urgent', schoolName: 'Collège Boboto', schoolId: 'EDUG-KI-KIN-0001', requester: 'Aline Nshuti · Directrice' },
-      { title: 'Paiement licence reçu', description: 'Renouvellement annuel 2024–2025 validé pour Lycée Shaumba', category: 'billing', status: 'resolved', priority: 'normal', schoolName: 'Lycée Shaumba', schoolId: 'EDUG-KI-KIN-0015', requester: 'Patrick Mumbere · Comptable' },
-      { title: 'Erreur de connexion API', description: 'L\'API retourne 503 intermittant pour les écoles du Sud-Kivu', category: 'technical', status: 'in_progress', priority: 'urgent', schoolName: 'Institut Mwangaza', schoolId: 'EDUG-NK-GOM-0589', requester: 'Jean Kabongo · Admin' },
-      { title: 'Formation utilisateurs', description: 'Demande de session de formation pour le personnel pedagogique', category: 'general', status: 'open', priority: 'low', schoolName: 'Collège Alfajiri', schoolId: 'EDUG-SK-BUK-0012', requester: 'Marie Nyirahabimana · Directrice' },
+      {
+        title: 'Assistance intégration ERP École',
+        description: "Demande d'assistance import élèves pour Collège Boboto (Kinshasa)",
+        category: 'integration',
+        status: 'open',
+        priority: 'urgent',
+        schoolName: 'Collège Boboto',
+        schoolId: 'EDUG-KI-KIN-0001',
+        requester: 'Aline Nshuti · Directrice',
+      },
+      {
+        title: 'Paiement licence reçu',
+        description: 'Renouvellement annuel 2024–2025 validé pour Lycée Shaumba',
+        category: 'billing',
+        status: 'resolved',
+        priority: 'normal',
+        schoolName: 'Lycée Shaumba',
+        schoolId: 'EDUG-KI-KIN-0015',
+        requester: 'Patrick Mumbere · Comptable',
+      },
+      {
+        title: 'Erreur de connexion API',
+        description: "L'API retourne 503 intermittant pour les écoles du Sud-Kivu",
+        category: 'technical',
+        status: 'in_progress',
+        priority: 'urgent',
+        schoolName: 'Institut Mwangaza',
+        schoolId: 'EDUG-NK-GOM-0589',
+        requester: 'Jean Kabongo · Admin',
+      },
+      {
+        title: 'Formation utilisateurs',
+        description: 'Demande de session de formation pour le personnel pedagogique',
+        category: 'general',
+        status: 'open',
+        priority: 'low',
+        schoolName: 'Collège Alfajiri',
+        schoolId: 'EDUG-SK-BUK-0012',
+        requester: 'Marie Nyirahabimana · Directrice',
+      },
     ];
 
     for (const ticket of ticketsData) {

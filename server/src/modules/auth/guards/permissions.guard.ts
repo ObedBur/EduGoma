@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 @Injectable()
@@ -24,7 +24,7 @@ export class PermissionsGuard implements CanActivate {
 
     // Extract user permissions from userRoles -> role -> rolePermissions -> permission
     const userPermissions: string[] = [];
-    
+
     if (user.userRoles) {
       for (const userRole of user.userRoles) {
         if (userRole.role?.rolePermissions) {
@@ -39,12 +39,12 @@ export class PermissionsGuard implements CanActivate {
 
     // Check if user has all required permissions
     const hasAllPermissions = requiredPermissions.every((permission) =>
-      userPermissions.includes(permission)
+      userPermissions.includes(permission),
     );
 
     if (!hasAllPermissions) {
       throw new ForbiddenException(
-        `Access denied. Required permissions: ${requiredPermissions.join(', ')}`
+        `Access denied. Required permissions: ${requiredPermissions.join(', ')}`,
       );
     }
 

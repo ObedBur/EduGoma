@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     port: 3000,
   },
-  
+
   // Configuration des plugins Vite
   plugins: [
     // VitePluginNode est crucial pour faire fonctionner NestJS avec Vite
@@ -22,7 +22,7 @@ export default defineConfig({
       swcOptions: {},
     }),
   ],
-  
+
   // Dépendances à exclure de l'optimisation des modules par Vite
   optimizeDeps: {
     exclude: [

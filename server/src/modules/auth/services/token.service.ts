@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../core/prisma/prisma.service';
 import * as crypto from 'crypto';
-import { jwtSign, jwtSignRefresh, jwtVerify, jwtVerifyRefresh } from '../../../libs/jwt.lib';
+import { Injectable } from '@nestjs/common';
 import { env } from '../../../config/env';
+import { PrismaService } from '../../../core/prisma/prisma.service';
+import { jwtSign, jwtSignRefresh, jwtVerify, jwtVerifyRefresh } from '../../../libs/jwt.lib';
 
 export interface TokenPayload {
   sub: string;
@@ -26,13 +26,13 @@ export class TokenService {
    */
   generateAccessToken(payload: TokenPayload): string {
     return jwtSign(
-      { 
-        sub: payload.sub, 
+      {
+        sub: payload.sub,
         tenantId: payload.tenantId,
         email: payload.email,
         phone: payload.phone,
       },
-      { expiresIn: env.JWT_ACCESS_EXPIRES_IN as any }
+      { expiresIn: env.JWT_ACCESS_EXPIRES_IN as any },
     );
   }
 
@@ -42,12 +42,13 @@ export class TokenService {
   generateRefreshToken(payload: TokenPayload, rememberMe = false): string {
     const expiresIn = rememberMe ? '30d' : (env.JWT_REFRESH_EXPIRES_IN as any);
     return jwtSignRefresh(
-      { 
-        sub: payload.sub, 
+      {
+        sub: payload.sub,
         tenantId: payload.tenantId,
         type: 'refresh',
+        jti: crypto.randomUUID(),
       },
-      { expiresIn }
+      { expiresIn },
     );
   }
 
@@ -85,20 +86,14 @@ export class TokenService {
    * Uses SHA256 for deterministic hashing (required for lookups)
    */
   async hashRefreshToken(token: string): Promise<string> {
-    return crypto
-      .createHash('sha256')
-      .update(token)
-      .digest('hex');
+    return crypto.createHash('sha256').update(token).digest('hex');
   }
 
   /**
    * Hash reset token before storing in database
    */
   async hashResetToken(token: string): Promise<string> {
-    return crypto
-      .createHash('sha256')
-      .update(token)
-      .digest('hex');
+    return crypto.createHash('sha256').update(token).digest('hex');
   }
 
   /**
@@ -108,7 +103,7 @@ export class TokenService {
     userId: string,
     tenantId: string,
     token: string,
-    userAgent?: string
+    userAgent?: string,
   ): Promise<string> {
     const tokenHash = await this.hashRefreshToken(token);
     const expiresAt = new Date();
@@ -130,11 +125,7 @@ export class TokenService {
   /**
    * Store password reset token hash in database
    */
-  async storeResetToken(
-    userId: string,
-    tenantId: string,
-    token: string
-  ): Promise<string> {
+  async storeResetToken(userId: string, tenantId: string, token: string): Promise<string> {
     const tokenHash = await this.hashResetToken(token);
     const expiresAt = new Date();
     expiresAt.setSeconds(expiresAt.getSeconds() + env.AUTH_RESET_TOKEN_EXPIRY);
@@ -276,7 +267,10 @@ export class TokenService {
       where: {
         OR: [
           { expiresAt: { lt: new Date() } },
-          { usedAt: { not: null }, createdAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+          {
+            usedAt: { not: null },
+            createdAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          },
         ],
       },
     });

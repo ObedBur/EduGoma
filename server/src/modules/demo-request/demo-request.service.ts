@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { CreateDemoRequestDto } from './dto/create-demo-request.dto';
 import { UpdateDemoRequestStatusDto } from './dto/update-demo-request-status.dto';
@@ -69,7 +69,7 @@ export class DemoRequestService {
 
     if (!isValidTransition) {
       throw new BadRequestException(
-        `Transition de statut invalide : impossible de passer de '${oldStatus}' à '${newStatus}'`
+        `Transition de statut invalide : impossible de passer de '${oldStatus}' à '${newStatus}'`,
       );
     }
 
@@ -95,11 +95,11 @@ export class DemoRequestService {
     const request = await this.prisma.demoRequest.findUnique({
       where: { id },
     });
-    
+
     if (!request) {
       throw new NotFoundException('Demande introuvable');
     }
-    
+
     return request;
   }
 }

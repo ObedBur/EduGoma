@@ -1,19 +1,14 @@
 import {
-  IsString,
+  IsEmail,
+  IsIn,
   IsNotEmpty,
   IsOptional,
-  IsEmail,
+  IsString,
   Matches,
   MaxLength,
-  IsIn,
 } from 'class-validator';
 
-export const STUDENT_RANGES = [
-  'moins-de-100',
-  '100-300',
-  '300-600',
-  'plus-de-600',
-] as const;
+export const STUDENT_RANGES = ['moins-de-100', '100-300', '300-600', 'plus-de-600'] as const;
 
 export type StudentRange = (typeof STUDENT_RANGES)[number];
 

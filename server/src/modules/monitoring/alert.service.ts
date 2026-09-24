@@ -1,5 +1,5 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { BrevoClient } from '@getbrevo/brevo';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { env } from '../../config/env';
 
 export interface AlertPayload {
@@ -74,8 +74,11 @@ export class AlertService implements OnModuleInit {
    * Send email alert via Brevo
    */
   private async sendEmail(payload: AlertPayload): Promise<void> {
-    const emailRecipients = env.ALERT_EMAIL_RECIPIENTS?.split(',').map(e => e.trim()).filter(Boolean) || [];
-    
+    const emailRecipients =
+      env.ALERT_EMAIL_RECIPIENTS?.split(',')
+        .map((e) => e.trim())
+        .filter(Boolean) || [];
+
     if (emailRecipients.length === 0) {
       this.logger.debug('No email recipients configured for alerts');
       return;
@@ -84,7 +87,9 @@ export class AlertService implements OnModuleInit {
     if (!this.brevoEnabled || !this.brevoClient) {
       this.logger.warn('Brevo not available - email alert logged only');
       this.logger.log(`[EMAIL ALERT] Would send to: ${emailRecipients.join(', ')}`);
-      this.logger.log(`[EMAIL ALERT] Subject: [EduGoma Security] ${payload.severity} - ${payload.type}`);
+      this.logger.log(
+        `[EMAIL ALERT] Subject: [EduGoma Security] ${payload.severity} - ${payload.type}`,
+      );
       return;
     }
 
@@ -96,12 +101,14 @@ export class AlertService implements OnModuleInit {
           email: env.BREVO_SENDER_EMAIL,
           name: env.BREVO_SENDER_NAME,
         },
-        to: emailRecipients.map(email => ({ email })),
+        to: emailRecipients.map((email) => ({ email })),
       };
 
       await this.brevoClient.transactionalEmails.sendTransacEmail(email);
-      
-      this.logger.log(`Security alert email sent via Brevo to ${emailRecipients.length} recipient(s): ${payload.type}`);
+
+      this.logger.log(
+        `Security alert email sent via Brevo to ${emailRecipients.length} recipient(s): ${payload.type}`,
+      );
     } catch (error) {
       this.logger.error(`Failed to send email via Brevo: ${error.message}`);
       // Don't throw - alerting should not break the main flow
@@ -113,7 +120,7 @@ export class AlertService implements OnModuleInit {
    */
   private async sendWebhook(payload: AlertPayload): Promise<void> {
     const webhookUrl = env.ALERT_WEBHOOK_URL;
-    
+
     if (!webhookUrl) {
       this.logger.debug('No webhook URL configured for alerts');
       return;
@@ -125,7 +132,7 @@ export class AlertService implements OnModuleInit {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(this.formatWebhookPayload(payload)),
       });
-      
+
       this.logger.log(`Webhook alert sent to ${webhookUrl}: ${payload.type}`);
     } catch (error) {
       this.logger.error(`Failed to send webhook alert: ${error.message}`);
@@ -144,17 +151,19 @@ export class AlertService implements OnModuleInit {
     };
 
     return {
-      embeds: [{
-        title: `🚨 EduGoma Security Alert: ${payload.type}`,
-        color: Number.parseInt(colorMap[payload.severity].replace('#', ''), 16),
-        fields: [
-          { name: 'Tenant', value: payload.tenantId, inline: true },
-          { name: 'Severity', value: payload.severity, inline: true },
-          { name: 'Time', value: payload.timestamp.toISOString(), inline: true },
-          { name: 'Details', value: payload.message },
-        ],
-        timestamp: payload.timestamp.toISOString(),
-      }],
+      embeds: [
+        {
+          title: `🚨 EduGoma Security Alert: ${payload.type}`,
+          color: Number.parseInt(colorMap[payload.severity].replace('#', ''), 16),
+          fields: [
+            { name: 'Tenant', value: payload.tenantId, inline: true },
+            { name: 'Severity', value: payload.severity, inline: true },
+            { name: 'Time', value: payload.timestamp.toISOString(), inline: true },
+            { name: 'Details', value: payload.message },
+          ],
+          timestamp: payload.timestamp.toISOString(),
+        },
+      ],
     };
   }
 
@@ -206,12 +215,16 @@ export class AlertService implements OnModuleInit {
             </tr>
           </table>
 
-          ${Object.keys(payload.metadata).length > 0 ? `
+          ${
+            Object.keys(payload.metadata).length > 0
+              ? `
             <div style="margin-top: 24px; padding: 16px; background: white; border-radius: 6px; border: 1px solid #e9ecef;">
               <h3 style="margin: 0 0 12px; font-size: 14px; color: #6c757d;">Metadata</h3>
               <pre style="margin: 0; padding: 12px; background: #f8f9fa; border-radius: 4px; font-size: 12px; overflow-x: auto; white-space: pre-wrap;">${JSON.stringify(payload.metadata, null, 2)}</pre>
             </div>
-          ` : ''}
+          `
+              : ''
+          }
           
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e9ecef; text-align: center; color: #6c757d; font-size: 12px;">
             <p style="margin: 0;">Cet email a été envoyé automatiquement par le système de monitoring EduGoma.</p>

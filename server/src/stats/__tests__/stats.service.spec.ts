@@ -42,10 +42,7 @@ describe('StatsService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        StatsService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [StatsService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     service = module.get<StatsService>(StatsService);
@@ -60,31 +57,28 @@ describe('StatsService', () => {
       // getTenantCounts order: all, active, pending, suspended, trial, overdue
       // then getSummary: currentMonth, previousMonth
       prisma.tenant.count
-        .mockResolvedValueOnce(10)  // all (counts)
-        .mockResolvedValueOnce(5)   // active (counts)
-        .mockResolvedValueOnce(2)   // pending
-        .mockResolvedValueOnce(1)   // suspended
-        .mockResolvedValueOnce(3)   // trial
-        .mockResolvedValueOnce(1)   // overdue
-        .mockResolvedValueOnce(2)   // current month schools
-        .mockResolvedValueOnce(1);  // previous month schools
+        .mockResolvedValueOnce(10) // all (counts)
+        .mockResolvedValueOnce(5) // active (counts)
+        .mockResolvedValueOnce(2) // pending
+        .mockResolvedValueOnce(1) // suspended
+        .mockResolvedValueOnce(3) // trial
+        .mockResolvedValueOnce(1) // overdue
+        .mockResolvedValueOnce(2) // current month schools
+        .mockResolvedValueOnce(1); // previous month schools
 
-      prisma.tenant.findMany.mockResolvedValue([
-        { commune: 'Goma' },
-        { commune: 'Karisimbi' },
-      ]);
+      prisma.tenant.findMany.mockResolvedValue([{ commune: 'Goma' }, { commune: 'Karisimbi' }]);
 
       prisma.demoRequest.count
-        .mockResolvedValueOnce(3)  // pending dossiers
-        .mockResolvedValueOnce(1)  // urgent dossiers
-        .mockResolvedValueOnce(0)  // current month students (converted)
+        .mockResolvedValueOnce(3) // pending dossiers
+        .mockResolvedValueOnce(1) // urgent dossiers
+        .mockResolvedValueOnce(0) // current month students (converted)
         .mockResolvedValueOnce(0); // previous month students (converted)
 
       prisma.user.count
-        .mockResolvedValueOnce(20)  // total users
-        .mockResolvedValueOnce(5)   // current month users
-        .mockResolvedValueOnce(3)   // previous month users
-        .mockResolvedValueOnce(2);  // active today users
+        .mockResolvedValueOnce(20) // total users
+        .mockResolvedValueOnce(5) // current month users
+        .mockResolvedValueOnce(3) // previous month users
+        .mockResolvedValueOnce(2); // active today users
 
       const result = await service.getSummary();
 
@@ -123,14 +117,14 @@ describe('StatsService', () => {
 
     it('should calculate activity rate correctly', async () => {
       prisma.tenant.count
-        .mockResolvedValueOnce(10)  // all
-        .mockResolvedValueOnce(8)   // active
-        .mockResolvedValueOnce(0)   // pending
-        .mockResolvedValueOnce(0)   // suspended
-        .mockResolvedValueOnce(0)   // trial
-        .mockResolvedValueOnce(0)   // overdue
-        .mockResolvedValueOnce(0)   // current month
-        .mockResolvedValueOnce(0);  // previous month
+        .mockResolvedValueOnce(10) // all
+        .mockResolvedValueOnce(8) // active
+        .mockResolvedValueOnce(0) // pending
+        .mockResolvedValueOnce(0) // suspended
+        .mockResolvedValueOnce(0) // trial
+        .mockResolvedValueOnce(0) // overdue
+        .mockResolvedValueOnce(0) // current month
+        .mockResolvedValueOnce(0); // previous month
 
       prisma.tenant.findMany.mockResolvedValue([]);
       prisma.demoRequest.count
@@ -181,14 +175,14 @@ describe('StatsService', () => {
 
     it('should calculate school trend correctly', async () => {
       prisma.tenant.count
-        .mockResolvedValueOnce(10)  // all
-        .mockResolvedValueOnce(5)   // active
-        .mockResolvedValueOnce(0)   // pending
-        .mockResolvedValueOnce(0)   // suspended
-        .mockResolvedValueOnce(0)   // trial
-        .mockResolvedValueOnce(0)   // overdue
-        .mockResolvedValueOnce(3)   // current month
-        .mockResolvedValueOnce(1);  // previous month
+        .mockResolvedValueOnce(10) // all
+        .mockResolvedValueOnce(5) // active
+        .mockResolvedValueOnce(0) // pending
+        .mockResolvedValueOnce(0) // suspended
+        .mockResolvedValueOnce(0) // trial
+        .mockResolvedValueOnce(0) // overdue
+        .mockResolvedValueOnce(3) // current month
+        .mockResolvedValueOnce(1); // previous month
 
       prisma.tenant.findMany.mockResolvedValue([]);
       prisma.demoRequest.count
@@ -241,6 +235,19 @@ describe('StatsService', () => {
       const result = await service.getGrowth();
 
       expect(result.months).toHaveLength(6);
+    });
+
+    it('should filter tenants to active schools only', async () => {
+      prisma.tenant.findMany.mockResolvedValue([]);
+      prisma.demoRequest.findMany.mockResolvedValue([]);
+
+      await service.getGrowth(6);
+
+      expect(prisma.tenant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: 'active' }),
+        }),
+      );
     });
 
     it('should return cumulative school counts', async () => {
@@ -296,11 +303,11 @@ describe('StatsService', () => {
   describe('getMetrics', () => {
     it('should return metrics with correct structure', async () => {
       prisma.tenant.findMany
-        .mockResolvedValueOnce([])  // current month tenants
+        .mockResolvedValueOnce([]) // current month tenants
         .mockResolvedValueOnce([]); // previous month tenants
       prisma.demoRequest.count
-        .mockResolvedValueOnce(10)  // total demo requests
-        .mockResolvedValueOnce(8);  // converted requests
+        .mockResolvedValueOnce(10) // total demo requests
+        .mockResolvedValueOnce(8); // converted requests
       prisma.accessLog.count.mockResolvedValue(300000);
 
       const result = await service.getMetrics();
@@ -335,9 +342,7 @@ describe('StatsService', () => {
     });
 
     it('should return null avgHours when no validated tenants', async () => {
-      prisma.tenant.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+      prisma.tenant.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
       prisma.demoRequest.count.mockResolvedValue(0);
       prisma.accessLog.count.mockResolvedValue(0);
 
@@ -347,11 +352,9 @@ describe('StatsService', () => {
     });
 
     it('should calculate completion rate from demo requests', async () => {
-      prisma.tenant.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+      prisma.tenant.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
       prisma.demoRequest.count
-        .mockResolvedValueOnce(20)  // total
+        .mockResolvedValueOnce(20) // total
         .mockResolvedValueOnce(15); // converted
       prisma.accessLog.count.mockResolvedValue(0);
 
@@ -395,9 +398,7 @@ describe('StatsService', () => {
     });
 
     it('should estimate storage from accessLog count', async () => {
-      prisma.tenant.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+      prisma.tenant.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
       prisma.demoRequest.count.mockResolvedValue(0);
       prisma.accessLog.count.mockResolvedValue(307200); // 300KB * 1024 = 307200
 

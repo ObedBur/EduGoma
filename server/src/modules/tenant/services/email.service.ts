@@ -1,5 +1,5 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { BrevoClient } from '@getbrevo/brevo';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { env } from '../../../config/env';
 
 export interface WelcomeEmailPayload {
@@ -7,6 +7,10 @@ export interface WelcomeEmailPayload {
   phone: string;
   email: string;
   commune?: string | null;
+  /** Lien de création de mot de passe (remplace le login direct) */
+  setupUrl?: string;
+  /** Durée de validité du lien en minutes (affichage) */
+  setupTtlMinutes?: number;
 }
 
 /**
@@ -60,10 +64,7 @@ export class EmailService implements OnModuleInit {
     }
 
     if (!this.brevoEnabled || !this.brevoClient) {
-      this.logger.log(
-        `[EMAIL MOCK] To: ${to}\n` +
-          `[EMAIL MOCK] Subject: ${subject}`,
-      );
+      this.logger.log(`[EMAIL MOCK] To: ${to}\n` + `[EMAIL MOCK] Subject: ${subject}`);
       return true;
     }
 
@@ -88,6 +89,8 @@ export class EmailService implements OnModuleInit {
 
   private buildWelcomeHtml(payload: WelcomeEmailPayload): string {
     const loginUrl = `${env.CLIENT_URL}/login`;
+    const setupUrl = payload.setupUrl || loginUrl;
+    const ttl = payload.setupTtlMinutes ?? Math.round(env.SETUP_LINK_TTL_SECONDS / 60);
     const communeLine = payload.commune
       ? `<p style="margin:4px 0;color:#55697a;font-size:13px;">Commune : <strong>${this.escape(payload.commune)}</strong></p>`
       : '';
@@ -117,25 +120,25 @@ export class EmailService implements OnModuleInit {
               </p>
 
               <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:0 0 20px;">
-                <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;">Vos accès</p>
-                <p style="margin:4px 0;font-size:13px;color:#334155;">Identifiant de connexion&nbsp;: <strong style="color:#102d48;">${this.escape(payload.phone)}</strong></p>
+                <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;">Créez votre mot de passe</p>
+                <p style="margin:4px 0;font-size:13px;color:#334155;">Ouvrez le lien sécurisé ci-dessous pour choisir votre mot de passe (valable <strong>${ttl} minutes</strong>).</p>
                 ${communeLine}
-                <p style="margin:4px 0;font-size:13px;color:#334155;">Espace&nbsp;: <a href="${this.escape(loginUrl)}" style="color:#2b6cb0;font-weight:600;">${this.escape(loginUrl)}</a></p>
+                <p style="margin:4px 0;font-size:13px;color:#334155;">Lien&nbsp;: <a href="${this.escape(setupUrl)}" style="color:#2b6cb0;font-weight:600;word-break:break-all;">${this.escape(setupUrl)}</a></p>
               </div>
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:0 0 20px;">
-                    <a href="${this.escape(loginUrl)}"
+                    <a href="${this.escape(setupUrl)}"
                       style="display:inline-block;background:#102d48;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 28px;border-radius:8px;">
-                      Accéder à mon espace
+                      Créer mon mot de passe
                     </a>
                   </td>
                 </tr>
               </table>
 
               <p style="margin:0;font-size:13px;line-height:1.6;color:#55697a;">
-                Pour toute assistance, répondez à cet email ou contactez l'équipe EduGoma.
+                Ce lien est à usage unique. Pour toute assistance, répondez à cet email ou contactez l'équipe EduGoma.
               </p>
             </td>
           </tr>

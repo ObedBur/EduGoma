@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
-import { TenantService } from './tenant.service';
-import { TenantController } from './tenant.controller';
-import { AdminTenantController } from './admin-tenant.controller';
-import { SmsService } from './services/sms.service';
-import { EmailService } from './services/email.service';
-import { WhatsAppService } from './services/whatsapp.service';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { AuthModule } from '../auth/auth.module';
+import { AdminTenantController } from './admin-tenant.controller';
+import { EmailService } from './services/email.service';
+import { SmsService } from './services/sms.service';
+import { WhatsAppService } from './services/whatsapp.service';
+import { TenantController } from './tenant.controller';
+import { TenantService } from './tenant.service';
 
 @Module({
   imports: [AuthModule],

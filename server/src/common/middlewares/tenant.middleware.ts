@@ -1,5 +1,5 @@
-import { Injectable, NestMiddleware, BadRequestException } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { BadRequestException, Injectable, NestMiddleware } from '@nestjs/common';
+import { NextFunction, Request, Response } from 'express';
 import { PrismaService } from '../../core/prisma/prisma.service';
 
 @Injectable()
@@ -14,8 +14,13 @@ export class TenantMiddleware implements NestMiddleware {
     // Optional: extract tenant from host e.g. tenant.example.com
     if (!tenantId && req.headers.host) {
       const host = req.headers.host.split(':')[0];
-      const parts = host.split('.');
-      if (parts.length > 2) tenantId = parts[0]; // simple subdomain strategy
+      // Skip localhost / IP addresses — only multi-label hostnames
+      const isIp =
+        /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host === 'localhost' || host.includes(':');
+      if (!isIp) {
+        const parts = host.split('.');
+        if (parts.length > 2) tenantId = parts[0]; // simple subdomain strategy
+      }
     }
 
     if (!tenantId) {

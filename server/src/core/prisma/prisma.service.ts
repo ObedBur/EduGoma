@@ -1,18 +1,17 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 @Injectable()
 // La classe hérite de PrismaClient pour obtenir toutes les méthodes CRUD
 // (findMany, create, update, etc.) et les méthodes de gestion de la connexion ($connect, $disconnect).
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
-
   /**
    * onModuleInit est appelé par NestJS lorsque le module est initialisé.
    * Nous utilisons cette méthode pour tester et établir la connexion à la base de données.
    */
   async onModuleInit() {
     try {
-      // Établit la connexion au démarrage. 
+      // Établit la connexion au démarrage.
       // Bien que Prisma supporte le "lazy connect" (connexion à la première requête),
       // forcer la connexion ici permet de détecter immédiatement les erreurs de configuration
       // de la base de données lors du lancement de l'application.

@@ -8,10 +8,7 @@ export class AlertService {
   async getPriorityAlerts(limit = 10) {
     return this.prisma.alert.findMany({
       where: { resolved: false },
-      orderBy: [
-        { severity: 'asc' },
-        { createdAt: 'desc' },
-      ],
+      orderBy: [{ severity: 'asc' }, { createdAt: 'desc' }],
       take: limit,
       select: {
         id: true,

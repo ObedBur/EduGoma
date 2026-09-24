@@ -3,8 +3,18 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { getTenantCounts } from './tenant-counts';
 
 const FRENCH_MONTHS = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+  'Janvier',
+  'Février',
+  'Mars',
+  'Avril',
+  'Mai',
+  'Juin',
+  'Juillet',
+  'Août',
+  'Septembre',
+  'Octobre',
+  'Novembre',
+  'Décembre',
 ];
 
 const ACTION_LABELS: Record<string, { title: string; type: string }> = {
@@ -25,7 +35,7 @@ function formatRelativeTime(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'à l\'instant';
+  if (diffMin < 1) return "à l'instant";
   if (diffMin < 60) return `${diffMin}m`;
   const diffH = Math.floor(diffMin / 60);
   if (diffH < 24) return `${diffH}h`;
@@ -43,7 +53,7 @@ export class StatsService {
 
     const [tenants, convertedRequests] = await Promise.all([
       this.prisma.tenant.findMany({
-        where: { createdAt: { gte: startDate } },
+        where: { createdAt: { gte: startDate }, status: 'active' },
         select: { createdAt: true },
       }),
       this.prisma.demoRequest.findMany({
@@ -167,17 +177,22 @@ export class StatsService {
       }),
     ]);
 
-    const activityRate =
-      counts.all > 0 ? Math.round((counts.active / counts.all) * 100) : 0;
+    const activityRate = counts.all > 0 ? Math.round((counts.active / counts.all) * 100) : 0;
 
     const schoolTrend = currentMonthSchools - previousMonthSchools;
     const userTrendPct =
       totalUsers > 0
-        ? (((currentMonthUsers - previousMonthUsers) / Math.max(totalUsers - currentMonthUsers, 1)) * 100).toFixed(1)
+        ? (
+            ((currentMonthUsers - previousMonthUsers) /
+              Math.max(totalUsers - currentMonthUsers, 1)) *
+            100
+          ).toFixed(1)
         : '0.0';
     const studentTrendPct =
       previousMonthStudents > 0
-        ? (((currentMonthStudents - previousMonthStudents) / previousMonthStudents) * 100).toFixed(1)
+        ? (((currentMonthStudents - previousMonthStudents) / previousMonthStudents) * 100).toFixed(
+            1,
+          )
         : '0.0';
 
     return {
@@ -187,7 +202,8 @@ export class StatsService {
         total: counts.all,
         trend: schoolTrend >= 0 ? `+${schoolTrend}` : `${schoolTrend}`,
         activityRate,
-        provinces: distinctProvinces.filter((p) => p.commune !== null).length || distinctProvinces.length,
+        provinces:
+          distinctProvinces.filter((p) => p.commune !== null).length || distinctProvinces.length,
       },
       pendingDossiers: {
         count: pendingDossiers,
@@ -253,13 +269,14 @@ export class StatsService {
         ? Math.round((convertedRequests / totalDemoRequests) * 1000) / 10
         : null;
 
-    const usedGB = Math.round((accessLogCount * 0.5 / 1024) * 10) / 10;
+    const usedGB = Math.round(((accessLogCount * 0.5) / 1024) * 10) / 10;
 
     return {
       onboarding: {
         avgHours: currentAvgHours,
         trend,
-        trendLabel: trend !== null && trend < 0 ? 'vs mois précédent (accélération)' : 'vs mois précédent',
+        trendLabel:
+          trend !== null && trend < 0 ? 'vs mois précédent (accélération)' : 'vs mois précédent',
       },
       completionRate: {
         rate: completionRate,
@@ -267,7 +284,7 @@ export class StatsService {
       },
       storage: {
         usedGB,
-        note: 'Estimation approximative',
+        note: 'Estimation basée sur les journaux d’accès (pas un quota hébergeur)',
       },
     };
   }

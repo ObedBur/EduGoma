@@ -1,8 +1,8 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../modules/auth/guards/super-admin.guard';
+import { ActivityLogQueryDto, GrowthQueryDto } from './dto/stats-query.dto';
 import { StatsService } from './stats.service';
-import { GrowthQueryDto, ActivityLogQueryDto } from './dto/stats-query.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, SuperAdminGuard)

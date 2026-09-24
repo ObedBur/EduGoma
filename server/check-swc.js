@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('Diagnostic de l\'environnement...');
+console.log("Diagnostic de l'environnement...");
 
 const checkPackage = (pkg) => {
   try {
@@ -20,5 +20,5 @@ const swcCli = checkPackage('@swc/cli');
 if (swcCore && swcCli) {
   console.log('\nTout semble prêt pour SWC ! 🚀');
 } else {
-  console.log('\nIl manque des dépendances. Veuillez patienter la fin de l\'installation.');
+  console.log("\nIl manque des dépendances. Veuillez patienter la fin de l'installation.");
 }

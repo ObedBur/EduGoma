@@ -88,48 +88,129 @@ export class AuditService {
 
   // ==================== AUTH ACTIONS ====================
 
-  async logRegister(userId: string, tenantId: string, ip?: string, userAgent?: string): Promise<void> {
+  async logRegister(
+    userId: string,
+    tenantId: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
     await this.logAction({ userId, tenantId, action: AuditAction.REGISTER, ip, userAgent });
   }
 
-  async logLoginSuccess(userId: string, tenantId: string, ip?: string, userAgent?: string): Promise<void> {
+  async logLoginSuccess(
+    userId: string,
+    tenantId: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
     await this.logAction({ userId, tenantId, action: AuditAction.LOGIN_SUCCESS, ip, userAgent });
   }
 
-  async logLoginFailed(userId: string, tenantId: string, ip?: string, userAgent?: string): Promise<void> {
+  async logLoginFailed(
+    userId: string,
+    tenantId: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
     await this.logAction({ userId, tenantId, action: AuditAction.LOGIN_FAILED, ip, userAgent });
   }
 
-  async logRefreshToken(userId: string, tenantId: string, ip?: string, userAgent?: string): Promise<void> {
+  async logRefreshToken(
+    userId: string,
+    tenantId: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
     await this.logAction({ userId, tenantId, action: AuditAction.REFRESH_TOKEN, ip, userAgent });
   }
 
-  async logLogout(userId: string, tenantId: string, ip?: string, userAgent?: string): Promise<void> {
+  async logLogout(
+    userId: string,
+    tenantId: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
     await this.logAction({ userId, tenantId, action: AuditAction.LOGOUT, ip, userAgent });
   }
 
-  async logPasswordChange(userId: string, tenantId: string, ip?: string, userAgent?: string): Promise<void> {
+  async logPasswordChange(
+    userId: string,
+    tenantId: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
     await this.logAction({ userId, tenantId, action: AuditAction.PASSWORD_CHANGE, ip, userAgent });
   }
 
-  async logAccountLocked(userId: string, tenantId: string, ip?: string, userAgent?: string, metadata?: Record<string, any>): Promise<void> {
-    await this.logAction({ userId, tenantId, action: AuditAction.ACCOUNT_LOCKED, ip, userAgent, metadata });
+  async logAccountLocked(
+    userId: string,
+    tenantId: string,
+    ip?: string,
+    userAgent?: string,
+    metadata?: Record<string, any>,
+  ): Promise<void> {
+    await this.logAction({
+      userId,
+      tenantId,
+      action: AuditAction.ACCOUNT_LOCKED,
+      ip,
+      userAgent,
+      metadata,
+    });
   }
 
-  async logAccountUnlocked(userId: string, tenantId: string, ip?: string, userAgent?: string): Promise<void> {
+  async logAccountUnlocked(
+    userId: string,
+    tenantId: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
     await this.logAction({ userId, tenantId, action: AuditAction.ACCOUNT_UNLOCKED, ip, userAgent });
   }
 
-  async logPasswordResetRequested(userId: string, tenantId: string, ip?: string, userAgent?: string): Promise<void> {
-    await this.logAction({ userId, tenantId, action: AuditAction.PASSWORD_RESET_REQUESTED, ip, userAgent });
+  async logPasswordResetRequested(
+    userId: string,
+    tenantId: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
+    await this.logAction({
+      userId,
+      tenantId,
+      action: AuditAction.PASSWORD_RESET_REQUESTED,
+      ip,
+      userAgent,
+    });
   }
 
-  async logPasswordResetCompleted(userId: string, tenantId: string, ip?: string, userAgent?: string): Promise<void> {
-    await this.logAction({ userId, tenantId, action: AuditAction.PASSWORD_RESET_COMPLETED, ip, userAgent });
+  async logPasswordResetCompleted(
+    userId: string,
+    tenantId: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
+    await this.logAction({
+      userId,
+      tenantId,
+      action: AuditAction.PASSWORD_RESET_COMPLETED,
+      ip,
+      userAgent,
+    });
   }
 
-  async logPasswordResetFailed(userId: string, tenantId: string, ip?: string, userAgent?: string): Promise<void> {
-    await this.logAction({ userId, tenantId, action: AuditAction.PASSWORD_RESET_FAILED, ip, userAgent });
+  async logPasswordResetFailed(
+    userId: string,
+    tenantId: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
+    await this.logAction({
+      userId,
+      tenantId,
+      action: AuditAction.PASSWORD_RESET_FAILED,
+      ip,
+      userAgent,
+    });
   }
 
   // ==================== TENANT/SCHOOL ACTIONS ====================
@@ -587,7 +668,12 @@ export class AuditService {
     });
   }
 
-  async getAuditLogsByResource(tenantId: string, resourceType: string, resourceId: string, limit = 50) {
+  async getAuditLogsByResource(
+    tenantId: string,
+    resourceType: string,
+    resourceId: string,
+    limit = 50,
+  ) {
     return this.prisma.accessLog.findMany({
       where: {
         tenantId,

@@ -1,9 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../core/prisma/prisma.service';
 
 /**
  * AdminGuard - Vérifie que l'utilisateur connecté a le rôle "Admin"
- * 
+ *
  * USAGE:
  * @UseGuards(JwtAuthGuard, AdminGuard)
  */
@@ -36,9 +36,7 @@ export class AdminGuard implements CanActivate {
     }
 
     // Check if any of the user's roles is "Admin"
-    const isAdmin = userWithRoles.userRoles.some(
-      (userRole) => userRole.role.name === 'Admin'
-    );
+    const isAdmin = userWithRoles.userRoles.some((userRole) => userRole.role.name === 'Admin');
 
     if (!isAdmin) {
       throw new ForbiddenException('Admin access required');

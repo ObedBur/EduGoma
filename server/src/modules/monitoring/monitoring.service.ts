@@ -1,19 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { PrismaService } from '../../core/prisma/prisma.service';
-import { AuditService, AuditAction } from '../auth/services/audit.service';
-import { AlertService, AlertPayload } from './alert.service';
 import { env } from '../../config/env';
+import { PrismaService } from '../../core/prisma/prisma.service';
+import { AuditAction, AuditService } from '../auth/services/audit.service';
+import { AlertPayload, AlertService } from './alert.service';
 
 interface ThresholdConfig {
   // Brute force: many failures from same IP/user in short time
   bruteForce: { failures: number; windowMinutes: number; severity: AlertPayload['severity'] };
   // Credential stuffing: failures across many users from same IP
-  credentialStuffing: { failures: number; uniqueUsers: number; windowMinutes: number; severity: AlertPayload['severity'] };
+  credentialStuffing: {
+    failures: number;
+    uniqueUsers: number;
+    windowMinutes: number;
+    severity: AlertPayload['severity'];
+  };
   // Account targeted: repeated failures on same account
   accountTargeted: { failures: number; windowMinutes: number; severity: AlertPayload['severity'] };
   // Anomalous success: login success after many failures
-  anomalousSuccess: { priorFailures: number; windowMinutes: number; severity: AlertPayload['severity'] };
+  anomalousSuccess: {
+    priorFailures: number;
+    windowMinutes: number;
+    severity: AlertPayload['severity'];
+  };
 }
 
 @Injectable()
@@ -22,26 +31,26 @@ export class MonitoringService {
 
   // Default thresholds (can be overridden via env)
   private readonly thresholds: ThresholdConfig = {
-    bruteForce: { 
-      failures: env.MONITOR_BRUTE_FORCE_FAILURES || 20, 
-      windowMinutes: env.MONITOR_BRUTE_FORCE_WINDOW || 10, 
-      severity: 'HIGH' 
+    bruteForce: {
+      failures: env.MONITOR_BRUTE_FORCE_FAILURES || 20,
+      windowMinutes: env.MONITOR_BRUTE_FORCE_WINDOW || 10,
+      severity: 'HIGH',
     },
-    credentialStuffing: { 
-      failures: env.MONITOR_CREDENTIAL_STUFFING_FAILURES || 30, 
-      uniqueUsers: env.MONITOR_CREDENTIAL_STUFFING_USERS || 10, 
-      windowMinutes: env.MONITOR_CREDENTIAL_STUFFING_WINDOW || 10, 
-      severity: 'HIGH' 
+    credentialStuffing: {
+      failures: env.MONITOR_CREDENTIAL_STUFFING_FAILURES || 30,
+      uniqueUsers: env.MONITOR_CREDENTIAL_STUFFING_USERS || 10,
+      windowMinutes: env.MONITOR_CREDENTIAL_STUFFING_WINDOW || 10,
+      severity: 'HIGH',
     },
-    accountTargeted: { 
-      failures: env.MONITOR_ACCOUNT_TARGETED_FAILURES || 10, 
-      windowMinutes: env.MONITOR_ACCOUNT_TARGETED_WINDOW || 15, 
-      severity: 'MEDIUM' 
+    accountTargeted: {
+      failures: env.MONITOR_ACCOUNT_TARGETED_FAILURES || 10,
+      windowMinutes: env.MONITOR_ACCOUNT_TARGETED_WINDOW || 15,
+      severity: 'MEDIUM',
     },
-    anomalousSuccess: { 
-      priorFailures: env.MONITOR_ANOMALOUS_SUCCESS_FAILURES || 5, 
-      windowMinutes: env.MONITOR_ANOMALOUS_SUCCESS_WINDOW || 30, 
-      severity: 'MEDIUM' 
+    anomalousSuccess: {
+      priorFailures: env.MONITOR_ANOMALOUS_SUCCESS_FAILURES || 5,
+      windowMinutes: env.MONITOR_ANOMALOUS_SUCCESS_WINDOW || 30,
+      severity: 'MEDIUM',
     },
   };
 
@@ -57,7 +66,7 @@ export class MonitoringService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   async checkFailedLogins(): Promise<void> {
     this.logger.debug('Running failed login monitoring check...');
-    
+
     try {
       const tenants = await this.prisma.tenant.findMany({
         where: { status: 'active' },
@@ -77,30 +86,33 @@ export class MonitoringService {
    */
   async checkTenant(tenantId: string, tenantName: string): Promise<void> {
     const now = new Date();
-    const windowMs = Math.max(
-      this.thresholds.bruteForce.windowMinutes,
-      this.thresholds.credentialStuffing.windowMinutes,
-      this.thresholds.accountTargeted.windowMinutes,
-      this.thresholds.anomalousSuccess.windowMinutes
-    ) * 60 * 1000;
+    const windowMs =
+      Math.max(
+        this.thresholds.bruteForce.windowMinutes,
+        this.thresholds.credentialStuffing.windowMinutes,
+        this.thresholds.accountTargeted.windowMinutes,
+        this.thresholds.anomalousSuccess.windowMinutes,
+      ) *
+      60 *
+      1000;
     const since = new Date(now.getTime() - windowMs);
 
     // Get all failed login attempts in window
     const failedAttempts = await this.auditService.getFailedLoginAttempts(tenantId, since);
-    
+
     if (failedAttempts.length === 0) return;
 
     // Group by IP for brute force / credential stuffing
     const byIp = new Map<string, typeof failedAttempts>();
     const byUser = new Map<string, typeof failedAttempts>();
-    
+
     for (const attempt of failedAttempts) {
       const ip = attempt.ip || 'unknown';
       const userId = attempt.userId;
-      
+
       if (!byIp.has(ip)) byIp.set(ip, []);
       byIp.get(ip)!.push(attempt);
-      
+
       if (!byUser.has(userId)) byUser.set(userId, []);
       byUser.get(userId)!.push(attempt);
     }
@@ -118,16 +130,18 @@ export class MonitoringService {
             tenantName,
             failureCount: attempts.length,
             windowMinutes: this.thresholds.bruteForce.windowMinutes,
-            targetUsers: [...new Set(attempts.map(a => a.userId))].length,
+            targetUsers: [...new Set(attempts.map((a) => a.userId))].length,
           },
           timestamp: new Date(),
         });
       }
 
       // 2. Check credential stuffing (same IP, many different users)
-      const uniqueUsers = new Set(attempts.map(a => a.userId)).size;
-      if (attempts.length >= this.thresholds.credentialStuffing.failures && 
-          uniqueUsers >= this.thresholds.credentialStuffing.uniqueUsers) {
+      const uniqueUsers = new Set(attempts.map((a) => a.userId)).size;
+      if (
+        attempts.length >= this.thresholds.credentialStuffing.failures &&
+        uniqueUsers >= this.thresholds.credentialStuffing.uniqueUsers
+      ) {
         await this.alertService.sendAlert({
           type: 'CREDENTIAL_STUFFING',
           tenantId,
@@ -158,7 +172,7 @@ export class MonitoringService {
             tenantName,
             failureCount: attempts.length,
             windowMinutes: this.thresholds.accountTargeted.windowMinutes,
-            ips: [...new Set(attempts.map(a => a.ip))],
+            ips: [...new Set(attempts.map((a) => a.ip))],
           },
           timestamp: new Date(),
         });
@@ -173,7 +187,11 @@ export class MonitoringService {
   /**
    * Check for successful logins after repeated failures
    */
-  private async checkAnomalousSuccess(tenantId: string, tenantName: string, since: Date): Promise<void> {
+  private async checkAnomalousSuccess(
+    tenantId: string,
+    tenantName: string,
+    since: Date,
+  ): Promise<void> {
     const successfulLogins = await this.prisma.accessLog.findMany({
       where: {
         tenantId,
@@ -191,7 +209,10 @@ export class MonitoringService {
           userId: login.userId,
           action: AuditAction.LOGIN_FAILED,
           createdAt: {
-            gte: new Date(login.createdAt.getTime() - this.thresholds.anomalousSuccess.windowMinutes * 60 * 1000),
+            gte: new Date(
+              login.createdAt.getTime() -
+                this.thresholds.anomalousSuccess.windowMinutes * 60 * 1000,
+            ),
             lt: login.createdAt,
           },
         },

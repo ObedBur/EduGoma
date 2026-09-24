@@ -1,8 +1,8 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { PrismaService } from '../../core/prisma/prisma.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminGuard } from '../auth/guards/admin.guard';
 import { UseGuards } from '@nestjs/common';
+import { PrismaService } from '../../core/prisma/prisma.service';
+import { AdminGuard } from '../auth/guards/admin.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('admin/notifications')
 @UseGuards(JwtAuthGuard, AdminGuard)

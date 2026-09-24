@@ -1,14 +1,23 @@
-import { Injectable, UnauthorizedException, BadRequestException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../../core/prisma/prisma.service';
+import {
+  BadRequestException,
+  ConflictException,
+  GoneException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { TokenService } from './services/token.service';
-import { AuditService } from './services/audit.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import { env } from '../../config/env';
+import { PrismaService } from '../../core/prisma/prisma.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SetupPasswordDto } from './dto/setup-password.dto';
+import { AuditService } from './services/audit.service';
+import { TokenService } from './services/token.service';
+import { hashSetupToken } from './utils/setup-token';
 
 const BCRYPT_ROUNDS = 12; // Strong hashing with 12 rounds
 
@@ -44,7 +53,7 @@ export class AuthService {
    */
   private async getLockoutStatus(userId: string): Promise<LockoutStatus> {
     const now = new Date();
-    
+
     // Get the most recent login attempt
     const latestAttempt = await this.prisma.loginAttempt.findFirst({
       where: { userId },
@@ -143,7 +152,11 @@ export class AuthService {
   /**
    * Store old password in history (before change) and cleanup old entries
    */
-  private async storePasswordHistory(userId: string, tenantId: string, oldPasswordHash: string): Promise<void> {
+  private async storePasswordHistory(
+    userId: string,
+    tenantId: string,
+    oldPasswordHash: string,
+  ): Promise<void> {
     const limit = env.AUTH_PASSWORD_HISTORY_LIMIT;
     if (limit <= 0) return; // Disabled
 
@@ -167,7 +180,7 @@ export class AuthService {
       });
 
       await this.prisma.passwordHistory.deleteMany({
-        where: { id: { in: toDelete.map(r => r.id) } },
+        where: { id: { in: toDelete.map((r) => r.id) } },
       });
     }
   }
@@ -193,10 +206,9 @@ export class AuthService {
     // Check if user already exists
     const existingUser = await this.prisma.user.findFirst({
       where: {
-        OR: [
-          dto.email ? { email: dto.email } : {},
-          dto.phone ? { phone: dto.phone } : {},
-        ].filter(obj => Object.keys(obj).length > 0),
+        OR: [dto.email ? { email: dto.email } : {}, dto.phone ? { phone: dto.phone } : {}].filter(
+          (obj) => Object.keys(obj).length > 0,
+        ),
       },
     });
 
@@ -246,10 +258,9 @@ export class AuthService {
     // Find user by email or phone
     const user = await this.prisma.user.findFirst({
       where: {
-        OR: [
-          dto.email ? { email: dto.email } : {},
-          dto.phone ? { phone: dto.phone } : {},
-        ].filter(obj => Object.keys(obj).length > 0),
+        OR: [dto.email ? { email: dto.email } : {}, dto.phone ? { phone: dto.phone } : {}].filter(
+          (obj) => Object.keys(obj).length > 0,
+        ),
       },
     });
 
@@ -278,7 +289,7 @@ export class AuthService {
     if (!isPasswordValid) {
       // Record failed attempt
       await this.recordLoginAttempt(user.id, user.tenantId, false, ip, userAgent);
-      
+
       // Log failed login attempt
       await this.auditService.logLoginFailed(user.id, user.tenantId, ip, userAgent);
 
@@ -286,17 +297,19 @@ export class AuthService {
       const newLockoutStatus = await this.getLockoutStatus(user.id);
       if (newLockoutStatus.failedAttempts >= env.AUTH_LOCKOUT_THRESHOLD) {
         const lockedUntil = new Date(Date.now() + env.AUTH_LOCKOUT_DURATION * 1000);
-        
+
         // Record the lockout
         await this.recordLoginAttempt(user.id, user.tenantId, false, ip, userAgent, lockedUntil);
-        
+
         // Log account lockout
         await this.auditService.logAccountLocked(user.id, user.tenantId, ip, userAgent, {
           failedAttempts: newLockoutStatus.failedAttempts,
           lockedUntil: lockedUntil.toISOString(),
         });
-        
-        throw new UnauthorizedException('Account temporarily locked due to multiple failed attempts');
+
+        throw new UnauthorizedException(
+          'Account temporarily locked due to multiple failed attempts',
+        );
       }
 
       throw new UnauthorizedException('Invalid credentials');
@@ -313,18 +326,16 @@ export class AuthService {
       phone: user.phone,
     });
 
-    const refreshToken = this.tokenService.generateRefreshToken({
-      sub: user.id,
-      tenantId: user.tenantId,
-    }, dto.rememberMe);
+    const refreshToken = this.tokenService.generateRefreshToken(
+      {
+        sub: user.id,
+        tenantId: user.tenantId,
+      },
+      dto.rememberMe,
+    );
 
     // Store refresh token hash in database
-    await this.tokenService.storeRefreshToken(
-      user.id,
-      user.tenantId,
-      refreshToken,
-      userAgent,
-    );
+    await this.tokenService.storeRefreshToken(user.id, user.tenantId, refreshToken, userAgent);
 
     // Log successful login
     await this.auditService.logLoginSuccess(user.id, user.tenantId, ip, userAgent);
@@ -352,7 +363,12 @@ export class AuthService {
   /**
    * Refresh access token with token rotation
    */
-  async refresh(refreshToken: string, ip?: string, userAgent?: string, rememberMe = false): Promise<AuthResponse> {
+  async refresh(
+    refreshToken: string,
+    ip?: string,
+    userAgent?: string,
+    rememberMe = false,
+  ): Promise<AuthResponse> {
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token is required');
     }
@@ -386,21 +402,19 @@ export class AuthService {
       phone: user.phone,
     });
 
-    const newRefreshToken = this.tokenService.generateRefreshToken({
-      sub: user.id,
-      tenantId: user.tenantId,
-    }, rememberMe);
+    const newRefreshToken = this.tokenService.generateRefreshToken(
+      {
+        sub: user.id,
+        tenantId: user.tenantId,
+      },
+      rememberMe,
+    );
 
     // Revoke old refresh token
     await this.tokenService.revokeRefreshToken(storedToken.id);
 
     // Store new refresh token hash
-    await this.tokenService.storeRefreshToken(
-      user.id,
-      user.tenantId,
-      newRefreshToken,
-      userAgent,
-    );
+    await this.tokenService.storeRefreshToken(user.id, user.tenantId, newRefreshToken, userAgent);
 
     // Log token refresh
     await this.auditService.logRefreshToken(user.id, user.tenantId, ip, userAgent);
@@ -422,7 +436,11 @@ export class AuthService {
   /**
    * Logout and revoke refresh token
    */
-  async logout(refreshToken: string, ip?: string, userAgent?: string): Promise<{ message: string }> {
+  async logout(
+    refreshToken: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<{ message: string }> {
     if (!refreshToken) {
       return { message: 'Logged out successfully' };
     }
@@ -430,7 +448,7 @@ export class AuthService {
     try {
       // Verify and get token data
       const result = await this.tokenService.verifyStoredRefreshToken(refreshToken);
-      
+
       // Revoke the token
       await this.tokenService.revokeRefreshToken(result.storedToken.id);
 
@@ -460,7 +478,11 @@ export class AuthService {
    * Validate user and return user data (for guards)
    * When `impersonation` claim is present (plan #3), skip strict tenant-match check
    */
-  async validateUser(userId: string, tenantId: string, impersonation?: { by: string; tenant: string; at: string }): Promise<any> {
+  async validateUser(
+    userId: string,
+    tenantId: string,
+    impersonation?: { by: string; tenant: string; at: string },
+  ): Promise<any> {
     const where: any = {
       id: userId,
       isActive: true,
@@ -510,7 +532,11 @@ export class AuthService {
    * Request password reset - sends reset token via email/SMS
    * Always returns success to prevent user enumeration
    */
-  async forgotPassword(dto: ForgotPasswordDto, ip?: string, userAgent?: string): Promise<{ message: string }> {
+  async forgotPassword(
+    dto: ForgotPasswordDto,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<{ message: string }> {
     // Validate that email OR phone is provided
     if (!dto.email && !dto.phone) {
       throw new BadRequestException('Either email or phone must be provided');
@@ -519,10 +545,9 @@ export class AuthService {
     // Find user by email or phone
     const user = await this.prisma.user.findFirst({
       where: {
-        OR: [
-          dto.email ? { email: dto.email } : {},
-          dto.phone ? { phone: dto.phone } : {},
-        ].filter(obj => Object.keys(obj).length > 0),
+        OR: [dto.email ? { email: dto.email } : {}, dto.phone ? { phone: dto.phone } : {}].filter(
+          (obj) => Object.keys(obj).length > 0,
+        ),
       },
     });
 
@@ -550,14 +575,23 @@ export class AuthService {
   /**
    * Reset password using token
    */
-  async resetPassword(dto: ResetPasswordDto, ip?: string, userAgent?: string): Promise<{ message: string }> {
+  async resetPassword(
+    dto: ResetPasswordDto,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<{ message: string }> {
     // Verify reset token
     let storedToken: any;
     try {
       const result = await this.tokenService.verifyResetToken(dto.token);
       storedToken = result.storedToken;
     } catch (error) {
-      await this.auditService.logPasswordResetFailed(storedToken?.userId || 'unknown', storedToken?.tenantId || 'unknown', ip, userAgent);
+      await this.auditService.logPasswordResetFailed(
+        storedToken?.userId || 'unknown',
+        storedToken?.tenantId || 'unknown',
+        ip,
+        userAgent,
+      );
       throw new UnauthorizedException('Invalid or expired reset token');
     }
 
@@ -574,7 +608,11 @@ export class AuthService {
     });
 
     // Store OLD password in history (current user password before reset)
-    await this.storePasswordHistory(storedToken.userId, storedToken.tenantId, storedToken.user?.password || '');
+    await this.storePasswordHistory(
+      storedToken.userId,
+      storedToken.tenantId,
+      storedToken.user?.password || '',
+    );
 
     // Mark reset token as used
     await this.tokenService.markResetTokenUsed(storedToken.id);
@@ -583,15 +621,27 @@ export class AuthService {
     await this.tokenService.revokeAllUserTokens(storedToken.userId);
 
     // Log audit
-    await this.auditService.logPasswordResetCompleted(storedToken.userId, storedToken.tenantId, ip, userAgent);
+    await this.auditService.logPasswordResetCompleted(
+      storedToken.userId,
+      storedToken.tenantId,
+      ip,
+      userAgent,
+    );
 
-    return { message: 'Password has been reset successfully. Please log in with your new password.' };
+    return {
+      message: 'Password has been reset successfully. Please log in with your new password.',
+    };
   }
 
   /**
    * Change password for authenticated user
    */
-  async changePassword(userId: string, dto: ChangePasswordDto, ip?: string, userAgent?: string): Promise<{ message: string }> {
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<{ message: string }> {
     // Get user
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -629,5 +679,89 @@ export class AuthService {
     await this.auditService.logPasswordChange(userId, user.tenantId, ip, userAgent);
 
     return { message: 'Password changed successfully. Please log in with your new password.' };
+  }
+
+  /**
+   * GET /auth/setup/:token — validate one-time setup link
+   */
+  async getSetupInfo(token: string): Promise<{ schoolName: string; expiresAt: string }> {
+    const record = await this.findValidSetupToken(token);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: record.tenantId },
+      select: { name: true },
+    });
+
+    return {
+      schoolName: tenant?.name ?? 'Votre école',
+      expiresAt: record.expiresAt.toISOString(),
+    };
+  }
+
+  /**
+   * POST /auth/setup/:token — set first password, consume token
+   */
+  async completeSetup(
+    token: string,
+    dto: SetupPasswordDto,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<{ message: string }> {
+    const record = await this.findValidSetupToken(token);
+
+    await this.checkPasswordHistory(record.userId, dto.password);
+
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+
+    const user = await this.prisma.user.findUnique({ where: { id: record.userId } });
+    if (user?.password) {
+      await this.storePasswordHistory(user.id, user.tenantId, user.password);
+    }
+
+    await this.prisma.user.update({
+      where: { id: record.userId },
+      data: {
+        password: passwordHash,
+        mustChangePassword: false,
+        isActive: true,
+      },
+    });
+
+    await this.prisma.setupToken.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    });
+
+    await this.tokenService.revokeAllUserTokens(record.userId);
+    await this.auditService.logPasswordChange(record.userId, record.tenantId, ip, userAgent);
+
+    return {
+      message: 'Password created successfully. You can now log in.',
+    };
+  }
+
+  private async findValidSetupToken(token: string) {
+    if (!token) {
+      throw new BadRequestException('Setup token is required');
+    }
+
+    const tokenHash = hashSetupToken(token);
+    const record = await this.prisma.setupToken.findUnique({
+      where: { tokenHash },
+    });
+
+    if (!record) {
+      throw new NotFoundException('Invalid setup link');
+    }
+
+    if (record.usedAt) {
+      throw new GoneException('This setup link has already been used');
+    }
+
+    if (record.expiresAt.getTime() < Date.now()) {
+      throw new GoneException('This setup link has expired');
+    }
+
+    return record;
   }
 }

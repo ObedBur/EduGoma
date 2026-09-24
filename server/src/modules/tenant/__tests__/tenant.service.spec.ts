@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TenantService } from '../tenant.service';
 import { PrismaService } from '../../../core/prisma/prisma.service';
-import { SmsService } from '../services/sms.service';
-import { EmailService } from '../services/email.service';
-import { WhatsAppService } from '../services/whatsapp.service';
 import { AuditService } from '../../auth/services/audit.service';
 import { ListTenantsQueryDto } from '../dto/list-tenants.query';
+import { EmailService } from '../services/email.service';
+import { SmsService } from '../services/sms.service';
+import { WhatsAppService } from '../services/whatsapp.service';
+import { TenantService } from '../tenant.service';
 
 describe('TenantService.listTenants', () => {
   let service: TenantService;
@@ -40,7 +40,14 @@ describe('TenantService.listTenants', () => {
       providers: [
         TenantService,
         { provide: PrismaService, useValue: prisma },
-        { provide: SmsService, useValue: { sendVerificationCode: jest.fn(), sendWelcomeMessage: jest.fn(), sendRejectionMessage: jest.fn() } },
+        {
+          provide: SmsService,
+          useValue: {
+            sendVerificationCode: jest.fn(),
+            sendWelcomeMessage: jest.fn(),
+            sendRejectionMessage: jest.fn(),
+          },
+        },
         { provide: EmailService, useValue: { sendWelcomeEmail: jest.fn() } },
         { provide: WhatsAppService, useValue: { sendWelcomeMessage: jest.fn() } },
         {
@@ -135,8 +142,6 @@ describe('TenantService.listTenants', () => {
 
   it('clamps limit to max 100', async () => {
     await service.listTenants({ page: 1, limit: 500 });
-    expect(prisma.tenant.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 100 }),
-    );
+    expect(prisma.tenant.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 100 }));
   });
 });
