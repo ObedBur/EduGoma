@@ -27,12 +27,12 @@ import {
   Users,
 } from "lucide-react";
 import { StatCard } from "@/components/layout/DashboardShared";
-import { useDashboard } from "@/hooks/use-dashboard";
+import { useDashboard, type DashboardSection, type SectionStatuses, type SectionErrors } from "@/hooks/use-dashboard";
 import { StatCardSkeleton } from "@/components/skeletons/StatCardSkeleton";
 import { ChartSkeleton } from "@/components/skeletons/ChartSkeleton";
 import { ActivityFeedSkeleton } from "@/components/skeletons/ActivityFeedSkeleton";
 import { DashboardPageSkeleton } from "@/components/skeletons/DashboardPageSkeleton";
-import type { Alert, Ticket, SystemHealth } from "@/lib/api";
+import type { Alert, MetricsData, SystemHealth, Ticket } from "@/lib/api";
 import { useState } from "react";
 import Link from "next/link";
 
@@ -83,10 +83,10 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
-  critical: { bg: "bg-red-100", text: "text-red-800" },
-  urgent: { bg: "bg-orange-100", text: "text-orange-800" },
-  normal: { bg: "bg-slate-100", text: "text-slate-600" },
-  low: { bg: "bg-slate-50", text: "text-slate-500" },
+  critical: { bg: "bg-red-50", text: "text-red-700" },
+  urgent: { bg: "bg-orange-50", text: "text-orange-700" },
+  normal: { bg: "bg-slate-50", text: "text-slate-600" },
+  low: { bg: "bg-blue-50", text: "text-blue-700" },
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -174,9 +174,9 @@ function AlertPanel({ alerts }: { alerts: Alert[] }) {
               key={alert.id}
               className={`border-b border-l-2 border-[#f0f3f5] ${colors.accent} py-2 pl-2.5 pr-1 last:border-b-0`}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <IconComp size={12} className={`shrink-0 ${colors.text}`} />
-                <p className="min-w-0 flex-1 truncate text-[12px] font-bold text-[#344b5f]">{alert.title}</p>
+                <p className="min-w-0 flex-1 basis-36 text-[12px] font-bold text-[#344b5f]">{alert.title}</p>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${colors.bg} ${colors.text}`}>
                   {SEVERITY_LABELS[alert.severity] ?? alert.severity}
                 </span>
@@ -267,15 +267,27 @@ function TicketPanel({ tickets }: { tickets: Ticket[] }) {
 
 // ── ActivityPanel ───────────────────────────────────────────
 
-function ActivityPanel({ items }: { items: { type: string; title: string; text: string; time: string }[] }) {
+function formatClock(ms: number): string {
+  return new Date(ms).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function ActivityPanel({
+  items,
+  updatedAt,
+}: {
+  items: { type: string; title: string; text: string; time: string }[];
+  updatedAt?: number | null;
+}) {
   return (
     <section className="flex h-full flex-col rounded-xl border border-[#e4eaf0] bg-white shadow-[0_2px_8px_rgba(20,40,65,0.03)]">
       <div className="flex items-center justify-between border-b border-[#edf1f4] px-4 py-3.5">
         <h2 className="flex items-center gap-2 text-[12px] font-bold text-[#1a2f42]">
           <ActivityIcon size={14} className="text-[#0ea5e9]" /> Journal d&apos;activité de la plateforme
         </h2>
-        <span className="flex items-center gap-1 text-[11px] font-bold text-[#23906b]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#2cb183] animate-pulse" /> Direct
+        <span className="shrink-0 text-[11px] font-medium text-[#7d8c9a]" title={
+          updatedAt ? new Date(updatedAt).toLocaleString("fr-FR") : undefined
+        }>
+          {updatedAt ? `Dernière mise à jour à ${formatClock(updatedAt)}` : "Chargement…"}
         </span>
       </div>
       <div className="flex-1 overflow-y-auto px-4 max-h-[250px] [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent]">
@@ -310,6 +322,80 @@ function ActivityPanel({ items }: { items: { type: string; title: string; text: 
 
 // ── SystemHealthPanel ─────────────────────────────────────────
 
+/** État global déduit des signaux : critique → Dégradé ; charge ≥ 85 % → Sous surveillance ; sinon OK */
+function deriveServiceState(health: SystemHealth | null, alerts: Alert[] | null) {
+  if (!health) {
+    return {
+      key: "unavailable" as const,
+      label: "Indisponible",
+      pill: "bg-slate-100 text-slate-600",
+      banner: "bg-slate-50",
+      dot: "bg-slate-400",
+      title: "text-slate-700",
+      sub: "text-slate-500",
+      message: "État du service indisponible",
+      iconClass: "text-slate-500",
+    };
+  }
+
+  const mem = health.memory;
+  const memoryPercent = mem.usagePercent ?? Math.round((mem.heapUsedMB / mem.heapTotalMB) * 100);
+  const memoryOk = memoryPercent < 85;
+  const criticalCount = alerts?.filter((a) => a.severity === "critical").length ?? 0;
+
+  if (criticalCount > 0 || health.status !== "healthy") {
+    return {
+      key: "degraded" as const,
+      label: "Dégradé",
+      pill: "bg-red-100 text-red-700",
+      banner: "bg-red-50",
+      dot: "bg-red-500",
+      title: "text-red-800",
+      sub: "text-red-700/80",
+      message:
+        criticalCount > 0
+          ? `La plateforme rencontre des difficultés — ${criticalCount} alerte${criticalCount > 1 ? "s" : ""} critique${criticalCount > 1 ? "s" : ""} en cours`
+          : "La plateforme rencontre des difficultés",
+      iconClass: "text-red-600",
+      memoryPercent,
+      memoryOk,
+      criticalCount,
+    };
+  }
+
+  if (!memoryOk) {
+    return {
+      key: "watch" as const,
+      label: "Sous surveillance",
+      pill: "bg-orange-100 text-orange-700",
+      banner: "bg-orange-50",
+      dot: "bg-orange-500",
+      title: "text-orange-800",
+      sub: "text-orange-700/80",
+      message: "Plateforme opérationnelle — charge serveur élevée, surveillance active",
+      iconClass: "text-orange-600",
+      memoryPercent,
+      memoryOk,
+      criticalCount,
+    };
+  }
+
+  return {
+    key: "ok" as const,
+    label: "Opérationnel",
+    pill: "bg-emerald-100 text-emerald-700",
+    banner: "bg-emerald-50",
+    dot: "bg-emerald-500",
+    title: "text-emerald-800",
+    sub: "text-emerald-700/80",
+    message: "La plateforme fonctionne normalement",
+    iconClass: "text-emerald-600",
+    memoryPercent,
+    memoryOk,
+    criticalCount,
+  };
+}
+
 function SystemHealthPanel({ health, alerts }: { health: SystemHealth | null; alerts: Alert[] | null }) {
   if (!health) {
     return (
@@ -319,98 +405,60 @@ function SystemHealthPanel({ health, alerts }: { health: SystemHealth | null; al
     );
   }
 
-  const isHealthy = health.status === "healthy";
   const mem = health.memory;
   const db = health.database;
-
-  const memoryPercent = mem.usagePercent ?? Math.round((mem.heapUsedMB / mem.heapTotalMB) * 100);
-  const memoryOk = memoryPercent < 85;
+  const state = deriveServiceState(health, alerts);
+  const memoryPercent = state.memoryPercent ?? 0;
+  const memoryOk = state.memoryOk ?? true;
 
   return (
     <section className="rounded-xl border border-[#e4eaf0] bg-white shadow-[0_2px_8px_rgba(20,40,65,0.03)]">
-      <div className="flex items-center justify-between border-b border-[#edf1f4] px-4 py-3">
-        <h2 className="flex items-center gap-2 text-[12px] font-bold text-[#1a2f42]">
-          <Server size={14} className={isHealthy ? "text-emerald-600" : "text-orange-600"} /> État du service
-        </h2>
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${isHealthy ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
-          {isHealthy ? "Tout va bien" : "À surveiller"}
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#edf1f4] px-4 py-3">
+        <div className="flex items-center gap-2">
+          <h2 className="flex items-center gap-2 text-[12px] font-bold text-[#1a2f42]">
+            <Server size={14} className={state.iconClass} /> État du service
+          </h2>
+          <span className="text-[11px] font-medium text-[#8e9ca8]">En service depuis {health.uptime}</span>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${state.pill}`}>{state.label}</span>
       </div>
       <div className="p-4 space-y-3">
-        {/* Service status */}
-        <div className="flex items-start gap-3 rounded-lg bg-emerald-50 p-3">
-          <span className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" />
-          <div>
-            <p className="text-[11px] font-bold text-emerald-800">
-              {isHealthy ? "La plateforme fonctionne normalement" : "La plateforme rencontre des difficultés"}
-            </p>
-            <p className="mt-0.5 text-[11px] text-emerald-700/80">
-              En service depuis {health.uptime} · sans interruption
-            </p>
-          </div>
+        <div className={`flex items-start gap-3 rounded-lg ${state.banner} p-3`}>
+          <span className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${state.dot}`} />
+          <p className={`text-[12px] font-bold ${state.title}`}>{state.message}</p>
         </div>
 
-        {/* DB + Schools + Users */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-lg bg-[#f8fafc] p-3 text-center">
-            <div className="flex items-center justify-center gap-1.5">
-              <span className={`h-2 w-2 rounded-full ${db.status === "connected" ? "bg-emerald-500" : "bg-red-500"}`} />
-              <p className="text-[11px] font-bold text-[#1a2f42]">
-                {db.status === "connected" ? "Connectée" : "Coupée"}
-              </p>
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+          <div className="rounded-lg bg-[#f8fafc] p-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">Base de données</p>
+            <p className="mt-1 text-[18px] font-black tracking-tight text-[#152a3d]">{db.latencyMs} ms</p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-[11px] font-medium text-[#8e9ca8]">
+              <span className={`h-1.5 w-1.5 rounded-full ${db.status === "connected" ? "bg-emerald-500" : "bg-red-500"}`} />
+              {db.status === "connected" ? "Connectée" : "Coupée"}
+            </p>
+          </div>
+          <div className="rounded-lg bg-[#f8fafc] p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">Charge serveur</p>
+              <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${memoryOk ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
+                {memoryOk ? "Normal" : "Élevé"}
+              </span>
             </div>
-            <p className="mt-1 text-[11px] text-[#8e9ca8]">Base de données</p>
-            <p className="text-[11px] text-[#8e9ca8]">réponse {db.latencyMs} ms</p>
+            <p className="mt-1 text-[18px] font-black tracking-tight text-[#152a3d]">{memoryPercent} %</p>
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#e2e8f0]">
+              <div className={`h-full rounded-full transition-all ${memoryOk ? "bg-emerald-500" : "bg-orange-500"}`} style={{ width: `${Math.min(memoryPercent, 100)}%` }} />
+            </div>
           </div>
-          <div className="rounded-lg bg-[#f8fafc] p-3 text-center">
-            <p className="text-[14px] font-bold text-[#1a2f42]">{health.stats.totalTenants}</p>
-            <p className="mt-0.5 text-[11px] text-[#8e9ca8]">Écoles</p>
-            <p className="text-[11px] text-[#8e9ca8]">inscrites</p>
+          <div className="rounded-lg bg-[#f8fafc] p-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">Écoles</p>
+            <p className="mt-1 text-[18px] font-black tracking-tight text-[#152a3d]">{health.stats.totalTenants}</p>
+            <p className="mt-0.5 text-[11px] font-medium text-[#8e9ca8]">inscrites sur la plateforme</p>
           </div>
-          <div className="rounded-lg bg-[#f8fafc] p-3 text-center">
-            <p className="text-[14px] font-bold text-[#1a2f42]">{health.stats.totalUsers}</p>
-            <p className="mt-0.5 text-[11px] text-[#8e9ca8]">Utilisateurs</p>
-            <p className="text-[11px] text-[#8e9ca8]">au total</p>
+          <div className="rounded-lg bg-[#f8fafc] p-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">Utilisateurs</p>
+            <p className="mt-1 text-[18px] font-black tracking-tight text-[#152a3d]">{health.stats.totalUsers}</p>
+            <p className="mt-0.5 text-[11px] font-medium text-[#8e9ca8]">comptes au total</p>
           </div>
-        </div>
-
-        {/* Memory — plain language */}
-        <div className="rounded-lg bg-[#f8fafc] p-3">
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-medium text-[#7d8c9a]">Charge du serveur</p>
-            <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${memoryOk ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
-              {memoryOk ? "Normal" : "Élevé"}
-            </span>
-          </div>
-          <div className="mt-1.5 h-2 bg-[#e2e8f0] rounded-full overflow-hidden">
-            <div className={`h-full rounded-full transition-all ${memoryOk ? "bg-emerald-500" : "bg-orange-500"}`} style={{ width: `${Math.min(memoryPercent, 100)}%` }} />
-          </div>
-          <p className="mt-1 text-[11px] text-[#8e9ca8]">
-            {memoryPercent}% utilisé — {memoryOk ? "serveur stable et réactif" : "ressources sollicitées (surveillance active)"}
-          </p>
-        </div>
-
-        {/* Critical alerts — real data */}
-        <div className="border-t border-[#edf1f4] pt-3">
-          <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#8e9ca8] mb-2">Alertes urgentes</p>
-          {(() => {
-            if (!alerts) {
-              return <p className="text-[12px] text-amber-700 font-medium">Données d’alertes indisponibles</p>;
-            }
-            const criticals = alerts.filter((a) => a.severity === "critical");
-            if (criticals.length === 0) {
-              return <p className="text-[12px] text-emerald-600 font-medium">Aucune alerte urgente — tout est calme</p>;
-            }
-            return (
-              <ul className="space-y-1">
-                {criticals.slice(0, 3).map((a) => (
-                  <li key={a.id} className="flex items-center gap-1.5 text-[12px] text-red-700">
-                    <AlertCircle size={10} className="shrink-0" /> {a.title}
-                  </li>
-                ))}
-              </ul>
-            );
-          })()}
         </div>
       </div>
     </section>
@@ -424,31 +472,26 @@ function GrowthChart({
 }: {
   growth: { labels: string[]; schools: number[]; students: number[] } | null;
 }) {
-  const schoolsData = growth?.schools ?? [0, 0, 0, 0, 0, 0];
-  const studentsData = growth?.students ?? [0, 0, 0, 0, 0, 0];
-  const labels = growth?.labels && growth.labels.length > 0
-    ? growth.labels
-    : ["M1", "M2", "M3", "M4", "M5", "M6"];
+  const hasRealData =
+    !!growth &&
+    Array.isArray(growth.labels) &&
+    growth.labels.length > 0 &&
+    (growth.schools.some((v) => v > 0) || growth.students.some((v) => v > 0));
 
-  const rawMaxSchools = Math.max(...schoolsData, 1);
-  const maxSchools = Math.max(Math.ceil((rawMaxSchools * 1.3) / 10) * 10, 10);
+  const schoolsData = growth?.schools ?? [];
+  const studentsData = growth?.students ?? [];
+  const labels = growth?.labels ?? [];
 
-  const rawMaxStudentsK = Math.max(...studentsData.map((s) => s / 1000), 1);
-  const maxStudentsK = Math.max(Math.ceil((rawMaxStudentsK * 1.3) / 10) * 10, 10);
+  // Un seul axe Y : max des deux séries (écoles et démos en compteurs unitaires)
+  const rawMax = Math.max(...schoolsData, ...studentsData, 1);
+  const yMax = Math.max(Math.ceil((rawMax * 1.3) / 10) * 10, 10);
 
   const yLabels = [
-    maxSchools,
-    Math.round(maxSchools * 0.75),
-    Math.round(maxSchools * 0.5),
-    Math.round(maxSchools * 0.25),
+    yMax,
+    Math.round(yMax * 0.75),
+    Math.round(yMax * 0.5),
+    Math.round(yMax * 0.25),
     0,
-  ];
-  const yLabelsRight = [
-    `${maxStudentsK}k`,
-    `${Math.round(maxStudentsK * 0.75)}k`,
-    `${Math.round(maxStudentsK * 0.5)}k`,
-    `${Math.round(maxStudentsK * 0.25)}k`,
-    "0k",
   ];
 
   const svgWidth = 600;
@@ -457,13 +500,13 @@ function GrowthChart({
 
   const schoolCoords = schoolsData.map((v, i) => {
     const x = (i / (numPoints - 1)) * svgWidth;
-    const y = svgHeight - (v / maxSchools) * (svgHeight - 30) - 15;
+    const y = svgHeight - (v / yMax) * (svgHeight - 30) - 15;
     return { x, y };
   });
 
   const studentCoords = studentsData.map((v, i) => {
     const x = (i / (numPoints - 1)) * svgWidth;
-    const y = svgHeight - (v / 1000 / maxStudentsK) * (svgHeight - 30) - 15;
+    const y = svgHeight - (v / yMax) * (svgHeight - 30) - 15;
     return { x, y };
   });
 
@@ -480,7 +523,6 @@ function GrowthChart({
     .join(" ");
 
   const hasDemoData = studentsData.some((v) => v > 0);
-  const showRightAxis = hasDemoData;
   const [hover, setHover] = useState<number | null>(null);
 
   const dateRangeLabel =
@@ -489,7 +531,7 @@ function GrowthChart({
       : "Période en cours";
 
   const exportCsv = () => {
-    const rows = [["Mois", "Écoles", "Demandes de démo converties"]];
+    const rows = [["Mois", "Écoles actives", "Démos converties"]];
     labels.forEach((label, i) => {
       rows.push([label, String(schoolsData[i] ?? 0), String(studentsData[i] ?? 0)]);
     });
@@ -511,107 +553,154 @@ function GrowthChart({
           <h2 className="mt-1 text-[14px] font-bold text-[#1a2f42]">Croissance du parc écoles</h2>
           <p className="mt-0.5 text-[11px] text-[#8a97a4]">{dateRangeLabel}</p>
         </div>
-        <button
-          onClick={exportCsv}
-          className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-[#486378] hover:bg-[#f1f5f8] transition-colors"
-        >
-          <Download size={12} /> Exporter le rapport
-        </button>
-      </div>
-
-      <div className="mt-3.5 flex flex-wrap gap-5 text-[12px] font-medium text-[#657685]">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#16293d]" />
-          Écoles partenaires actives
-        </span>
-        <span className={`flex items-center gap-1.5 ${hasDemoData ? "" : "text-[#9aa6b4]"}`}>
-          <span className={`h-2.5 w-2.5 rounded-full ${hasDemoData ? "bg-[#387299]" : "bg-[#d5dee6]"}`} />
-          Démos converties
-        </span>
-      </div>
-
-      <div className="relative mt-4 flex-1 min-h-[160px]">
-        {/* Grille horizontale et labels Y gauche */}
-        <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-[11px] font-semibold text-[#8c9ca9] w-6 text-right">
-          {yLabels.map((l, i) => (
-            <span key={`y-left-${i}`}>{l}</span>
-          ))}
-        </div>
-
-        {/* Lignes de repère */}
-        <div className={`absolute inset-y-0 left-8 ${showRightAxis ? "right-8" : "right-2"} flex flex-col justify-between bottom-6`}>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <span key={i} className="border-t border-dashed border-[#e9eff4]" />
-          ))}
-        </div>
-
-        {/* Tracé SVG interactif */}
-        <svg
-          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          preserveAspectRatio="none"
-          className={`absolute inset-y-0 left-8 ${showRightAxis ? "right-8 w-[calc(100%-64px)]" : "right-2 w-[calc(100%-40px)]"} h-[calc(100%-24px)] overflow-visible`}
-        >
-          {schoolAreaPath && (
-            <path d={schoolAreaPath} fill="url(#growthAreaGrad)" opacity=".18" />
-          )}
-          {schoolLinePath && (
-            <path d={schoolLinePath} fill="none" stroke="#16293d" strokeWidth="2.5" strokeLinecap="round" />
-          )}
-          {hasDemoData && studentLinePath && (
-            <path d={studentLinePath} fill="none" stroke="#387299" strokeWidth="2" strokeDasharray="5 4" strokeLinecap="round" />
-          )}
-
-          <defs>
-            <linearGradient id="growthAreaGrad" x1="0" x2="0" y1="0" y2="1">
-              <stop stopColor="#387299" />
-              <stop offset="1" stopColor="#edf4f8" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-        </svg>
-
-        {/* Points + tooltip au survol */}
-        <div className={`absolute inset-y-0 left-8 ${showRightAxis ? "right-8" : "right-2"} h-[calc(100%-24px)]`}>
-          {schoolCoords.map((p, i) => (
-            <button
-              key={`pt-${i}`}
-              type="button"
-              onMouseEnter={() => setHover(i)}
-              onMouseLeave={() => setHover(null)}
-              onFocus={() => setHover(i)}
-              onBlur={() => setHover(null)}
-              aria-label={`${labels[i] ?? `M${i + 1}`} : ${schoolsData[i] ?? 0} écoles`}
-              className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border-2 border-[#16293d] bg-white transition-transform hover:scale-125"
-              style={{ left: `${(i / (numPoints - 1)) * 100}%`, top: `${(p.y / svgHeight) * 100}%` }}
-            />
-          ))}
-          {hover !== null && schoolCoords[hover] && (
-            <div
-              className="pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-[#16293d] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-lg"
-              style={{ left: `${(hover / (numPoints - 1)) * 100}%`, top: `${(schoolCoords[hover].y / svgHeight) * 100}%`, marginTop: "-36px" }}
-            >
-              {labels[hover] ?? `M${hover + 1}`} · {schoolsData[hover] ?? 0} école{(schoolsData[hover] ?? 0) > 1 ? "s" : ""}
-            </div>
-          )}
-        </div>
-
-        {/* Labels Y droite */}
-        {showRightAxis && (
-        <div className="absolute right-0 top-0 bottom-6 flex flex-col justify-between text-[11px] font-semibold text-[#8c9ca9] w-6">
-          {yLabelsRight.map((l, i) => (
-            <span key={`y-right-${i}`}>{l}</span>
-          ))}
-        </div>
+        {hasRealData && (
+          <button
+            onClick={exportCsv}
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-[#486378] hover:bg-[#f1f5f8] transition-colors"
+          >
+            <Download size={12} /> Exporter le rapport
+          </button>
         )}
-
-        {/* Labels X mois */}
-        <div className={`absolute bottom-0 left-8 ${showRightAxis ? "right-8" : "right-2"} flex justify-between text-[11px] font-semibold text-[#7f8f9e]`}>
-          {labels.map((l, i) => (
-            <span key={`x-label-${i}`}>
-              {l}
-            </span>
-          ))}
-        </div>
       </div>
+
+      {!hasRealData ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f0f4f7]">
+            <Network size={18} className="text-[#8c9ca9]" />
+          </div>
+          <p className="text-[12px] font-bold text-[#3a5266]">Aucune donnée sur la période</p>
+          <p className="max-w-[280px] text-[11px] text-[#8c9ca9]">
+            Pas encore d’écoles actives ni de démos converties à afficher.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="mt-3.5 flex flex-wrap gap-5 text-[12px] font-medium text-[#657685]">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#16293d]" />
+              Écoles partenaires actives
+            </span>
+            <span className={`flex items-center gap-1.5 ${hasDemoData ? "" : "text-[#9aa6b4]"}`}>
+              <span className={`h-2.5 w-2.5 rounded-full ${hasDemoData ? "bg-[#387299]" : "bg-[#d5dee6]"}`} />
+              Démos converties
+            </span>
+          </div>
+
+          <div className="relative mt-4 flex-1 min-h-[160px]">
+            {/* Grille horizontale et labels Y gauche */}
+            <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-[11px] font-semibold text-[#8c9ca9] w-6 text-right">
+              {yLabels.map((l, i) => (
+                <span key={`y-left-${i}`}>{l}</span>
+              ))}
+            </div>
+
+            {/* Lignes de repère */}
+            <div className="absolute inset-y-0 left-8 right-2 flex flex-col justify-between bottom-6">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <span key={i} className="border-t border-dashed border-[#e9eff4]" />
+              ))}
+            </div>
+
+            {/* Tracé SVG interactif */}
+            <svg
+              viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+              preserveAspectRatio="none"
+              className="absolute inset-y-0 left-8 right-2 w-[calc(100%-40px)] h-[calc(100%-24px)] overflow-visible"
+              role="img"
+              aria-label={`Croissance du parc : ${labels.join(", ")}`}
+            >
+              <title>Croissance du parc écoles</title>
+              <desc>
+                {labels
+                  .map((l, i) => `${l}: ${schoolsData[i] ?? 0} écoles actives, ${studentsData[i] ?? 0} démos converties`)
+                  .join(". ")}
+              </desc>
+              {schoolAreaPath && (
+                <path d={schoolAreaPath} fill="url(#growthAreaGrad)" opacity=".18" />
+              )}
+              {schoolLinePath && (
+                <path d={schoolLinePath} fill="none" stroke="#16293d" strokeWidth="2.5" strokeLinecap="round" />
+              )}
+              {hasDemoData && studentLinePath && (
+                <path d={studentLinePath} fill="none" stroke="#387299" strokeWidth="2" strokeDasharray="5 4" strokeLinecap="round" />
+              )}
+
+              <defs>
+                <linearGradient id="growthAreaGrad" x1="0" x2="0" y1="0" y2="1">
+                  <stop stopColor="#387299" />
+                  <stop offset="1" stopColor="#edf4f8" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
+
+            {/* Points + tooltip au survol */}
+            <div className="absolute inset-y-0 left-8 right-2 h-[calc(100%-24px)]">
+              {schoolCoords.map((p, i) => (
+                <button
+                  key={`pt-${i}`}
+                  type="button"
+                  onMouseEnter={() => setHover(i)}
+                  onMouseLeave={() => setHover(null)}
+                  onFocus={() => setHover(i)}
+                  onBlur={() => setHover(null)}
+                  aria-label={`${labels[i] ?? `Mois ${i + 1}`} : ${schoolsData[i] ?? 0} écoles actives`}
+                  className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border-2 border-[#16293d] bg-white transition-transform hover:scale-125"
+                  style={{ left: `${(i / (numPoints - 1)) * 100}%`, top: `${(p.y / svgHeight) * 100}%` }}
+                />
+              ))}
+              {hover !== null && schoolCoords[hover] && (
+                <div
+                  className="pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-[#16293d] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-lg"
+                  style={{ left: `${(hover / (numPoints - 1)) * 100}%`, top: `${(schoolCoords[hover].y / svgHeight) * 100}%`, marginTop: "-36px" }}
+                >
+                  {labels[hover] ?? `Mois ${hover + 1}`} · {schoolsData[hover] ?? 0} école{(schoolsData[hover] ?? 0) > 1 ? "s" : ""}
+                  {hasDemoData && ` · ${studentsData[hover] ?? 0} démo${(studentsData[hover] ?? 0) > 1 ? "s" : ""}`}
+                </div>
+              )}
+            </div>
+
+            {/* Labels X mois */}
+            <div className="absolute bottom-0 left-8 right-2 flex justify-between text-[11px] font-medium text-[#7f8f9e]">
+              {labels.map((l, i) => (
+                <span key={`x-label-${i}`}>
+                  <span className="sm:hidden">{l.split(" ")[0]}</span>
+                  <span className="hidden sm:inline">{l}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Alternative textuelle : mêmes valeurs que le SVG */}
+          <details className="mt-3 border-t border-[#edf1f4] pt-3">
+            <summary className="cursor-pointer text-[11px] font-semibold text-[#486378] hover:text-[#1a334b]">
+              Voir les données sous forme de tableau
+            </summary>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full min-w-[320px] text-left text-[11px]">
+                <caption className="sr-only">
+                  Croissance du parc écoles : écoles actives et démos converties par mois
+                </caption>
+                <thead>
+                  <tr className="border-b border-[#e9eff4] bg-[#f8fafc] text-[11px] font-bold uppercase tracking-[0.04em] text-[#5a6b7c]">
+                    <th scope="col" className="px-2 py-1.5">Mois</th>
+                    <th scope="col" className="px-2 py-1.5">Écoles actives</th>
+                    <th scope="col" className="px-2 py-1.5">Démos converties</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {labels.map((l, i) => (
+                    <tr key={`data-${i}`} className="border-b border-[#f0f3f5] text-[#4e6575] last:border-0">
+                      <th scope="row" className="px-2 py-1.5 font-semibold text-[#344b5f]">{l}</th>
+                      <td className="px-2 py-1.5 font-medium">{schoolsData[i] ?? 0}</td>
+                      <td className="px-2 py-1.5 font-medium">{studentsData[i] ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </>
+      )}
     </section>
   );
 }
@@ -621,11 +710,7 @@ function GrowthChart({
 function BottomGrid({
   metrics,
 }: {
-  metrics: {
-    onboarding: { avgHours: number; trend: number; trendLabel: string };
-    completionRate: { rate: number };
-    storage: { usedGB: number };
-  } | null;
+  metrics: MetricsData | null;
 }) {
   const avgHours = metrics?.onboarding.avgHours ?? null;
   const hours = avgHours !== null ? Math.floor(avgHours) : null;
@@ -701,22 +786,20 @@ function BottomGrid({
         </div>
       </div>
 
-      {/* 4 colonnes : Stockage Cloud Écoles */}
+      {/* Estimation de volume — pas de quota réel mesuré */}
       <div className="col-span-12 sm:col-span-6 xl:col-span-4">
         <div className="flex h-full flex-col justify-between rounded-xl border border-[#e4eaf0] bg-white p-3.5 shadow-[0_2px_8px_rgba(20,40,65,0.03)] hover:shadow-[0_4px_12px_rgba(20,40,65,0.06)] hover:border-[#cfdbe5] transition-all duration-200">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">Documents &amp; Données scolaires</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">Volume estimé</p>
             <p className="mt-1.5 text-[22px] font-black tracking-tight text-[#152a3d]">{storage} Go</p>
-            <div className="mt-1.5 h-1.5 w-full rounded-full bg-[#eef3f7] overflow-hidden">
-              <div
-                className="h-full rounded-full bg-[#387299] transition-all duration-500"
-                style={{ width: `${Math.min(Math.max((storage / 500) * 100, 6), 100)}%` }}
-              />
-            </div>
+            <p className="mt-0.5 text-[11px] font-medium text-[#8c9ca9]">
+              {metrics?.storage.note || "Estimation approximative"}
+            </p>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-[#f0f4f7] flex items-center justify-between gap-2 text-[12px] text-[#6d7f90]">
-            <p className="text-[11px] font-medium text-[#7d8e9c]">Bulletins &amp; archives numérisés</p>
-            <span className="text-[11px] font-medium text-[#8c9ca9]">Quota 500 Go</span>
+          <div className="mt-2.5 pt-2 border-t border-[#f0f4f7]">
+            <p className="text-[11px] font-medium text-[#7d8e9c]">
+              Basé sur les journaux d’accès — pas un quota hébergeur
+            </p>
           </div>
         </div>
       </div>
@@ -727,10 +810,72 @@ function BottomGrid({
 // Alias for Turbopack HMR cache compatibility
 const AdoptionMetricsRow = BottomGrid;
 
+// ── Section states ──────────────────────────────────────────
+
+function SectionErrorBanner({
+  label,
+  message,
+  onRetry,
+}: {
+  label: string;
+  message: string | null;
+  onRetry?: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800"
+    >
+      <span>
+        <strong className="font-bold">{label}</strong> — données indisponibles
+        {message ? ` (${message})` : ""}.
+      </span>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-md border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+        >
+          Réessayer
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SectionUnavailable({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-[120px] flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#d7e0e8] bg-[#fafcfd] p-4 text-center">
+      <p className="text-[12px] font-bold text-[#3a5266]">Données indisponibles</p>
+      <p className="text-[11px] text-[#8c9ca9]">{label} n’a pas pu être chargé.</p>
+    </div>
+  );
+}
+
+const isSectionError = (statuses: SectionStatuses, section: DashboardSection) =>
+  statuses[section] === "error";
+const isSectionLoading = (statuses: SectionStatuses, section: DashboardSection) =>
+  statuses[section] === "loading" || statuses[section] === "idle";
+
 // ── Main Page ───────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { summary, growth, metrics, activityLog, alerts, tickets, systemHealth, loading, error } = useDashboard();
+  const {
+    summary,
+    growth,
+    metrics,
+    activityLog,
+    activityUpdatedAt,
+    alerts,
+    tickets,
+    systemHealth,
+    statuses,
+    errors,
+    loading,
+    error,
+    refetch,
+    refetchSection,
+  } = useDashboard();
   const [activeTab, setActiveTab] = useState<"business" | "infrastructure">("business");
 
   if (loading) {
@@ -740,11 +885,45 @@ export default function DashboardPage() {
   const schoolsCount = summary?.schools.active ?? "—";
   // Source de vérité unique : compteur de l'API tenants (comme la page Écoles)
   const pendingCount = summary?.counts.pending ?? summary?.pendingDossiers.count ?? 0;
+  const serviceState = deriveServiceState(systemHealth, alerts);
+
+  const serviceDotClass =
+    serviceState.key === "ok"
+      ? "bg-emerald-500"
+      : serviceState.key === "watch"
+        ? "bg-amber-500"
+        : serviceState.key === "degraded"
+          ? "bg-red-500"
+          : "bg-slate-400";
+  const serviceTextClass =
+    serviceState.key === "ok"
+      ? "text-emerald-700 font-semibold"
+      : serviceState.key === "watch"
+        ? "text-amber-700 font-semibold"
+        : serviceState.key === "degraded"
+          ? "text-red-700 font-semibold"
+          : "text-slate-600 font-semibold";
 
   const tabButtons = [
     { id: "business" as const, label: "Vue Métiers & Écoles", icon: LayoutDashboard },
     { id: "infrastructure" as const, label: "État du service", icon: ActivityIcon },
   ];
+
+  const onTabKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") {
+      return;
+    }
+    e.preventDefault();
+    const ids = tabButtons.map((t) => t.id);
+    const current = ids.indexOf(activeTab);
+    let next = current;
+    if (e.key === "ArrowRight") next = (current + 1) % ids.length;
+    if (e.key === "ArrowLeft") next = (current - 1 + ids.length) % ids.length;
+    if (e.key === "Home") next = 0;
+    if (e.key === "End") next = ids.length - 1;
+    setActiveTab(ids[next]);
+    document.getElementById(`dashboard-tab-${ids[next]}`)?.focus();
+  };
 
   return (
     <div className="w-full box-border pb-8">
@@ -758,37 +937,41 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 shadow-xs">
-          <span
-            className={`h-2 w-2 rounded-full ${
-              !systemHealth ? "bg-slate-400" : systemHealth.status === "healthy" ? "bg-emerald-500" : "bg-amber-500"
-            }`}
-          />
+          <span className={`h-2 w-2 rounded-full ${serviceDotClass}`} />
           <span className="text-[12px] font-medium text-slate-700">
             Service :{" "}
-            <strong
-              className={
-                !systemHealth ? "text-slate-600 font-semibold" : systemHealth.status === "healthy" ? "text-emerald-700 font-semibold" : "text-amber-700 font-semibold"
-              }
-            >
-              {!systemHealth ? "Indisponible" : systemHealth.status === "healthy" ? "Opérationnel" : "À surveiller"}
-            </strong>
+            <strong className={serviceTextClass}>{serviceState.label}</strong>
           </span>
         </div>
       </div>
 
-      <div className="mb-5 flex flex-wrap items-center gap-2 border-b border-[#dfe7ed]">
-        {tabButtons.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 rounded-t-lg px-3.5 py-2.5 text-[11px] font-medium transition-colors ${activeTab === tab.id
-              ? "border-b-2 border-[#122e47] bg-white text-[#1a334b] font-bold"
-              : "text-[#708191] hover:text-[#1c364e]"
-              }`}
-          >
-            <tab.icon size={13} /> {tab.label}
-          </button>
-        ))}
+      <div
+        role="tablist"
+        aria-label="Vues du tableau de bord"
+        className="mb-5 flex flex-wrap items-center gap-2 border-b border-[#dfe7ed]"
+        onKeyDown={onTabKeyDown}
+      >
+        {tabButtons.map((tab) => {
+          const selected = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              id={`dashboard-tab-${tab.id}`}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              aria-controls={`dashboard-panel-${tab.id}`}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 rounded-t-lg px-3.5 py-2.5 text-[11px] font-medium transition-colors ${selected
+                ? "border-b-2 border-[#122e47] bg-white text-[#1a334b] font-bold"
+                : "text-[#708191] hover:text-[#1c364e]"
+                }`}
+            >
+              <tab.icon size={13} aria-hidden="true" /> {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {error && (
@@ -796,11 +979,27 @@ export default function DashboardPage() {
           role="status"
           className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-[11px] text-amber-800"
         >
-          {error}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={refetch}
+              className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+            >
+              Tout réessayer
+            </button>
+          </div>
         </div>
       )}
 
-      {activeTab === "business" && pendingCount > 0 && (
+      {activeTab === "business" && (
+        <div
+          role="tabpanel"
+          id="dashboard-panel-business"
+          aria-labelledby="dashboard-tab-business"
+          tabIndex={0}
+        >
+          {pendingCount > 0 && (
         <section className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#102d48] px-4 py-3 text-white shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#214863] text-[#75d0b2]">
@@ -827,119 +1026,149 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {activeTab === "business" && summary ? (
-        <div className="mb-5 grid grid-cols-12 gap-3">
-          <div className="col-span-12 sm:col-span-6 xl:col-span-3">
-            <StatCard
-              label="Écoles actives"
-              value={String(summary.schools.active)}
-              trend={visibleTrend(summary.schools.trend, summary.schools.active)}
-              icon={Building2}
-              detail={
-                <>
-                  <span>Réparties sur {summary.schools.provinces} commune{summary.schools.provinces > 1 ? "s" : ""}</span>
-                  <strong className="text-[#3a5266]">
-                    Taux d&apos;activité <b className="text-[#23906b]">{summary.schools.activityRate}%</b>
-                  </strong>
-                </>
-              }
+      {activeTab === "business" && (
+        <>
+          {isSectionError(statuses, "summary") && (
+            <SectionErrorBanner
+              label="Statistiques générales"
+              message={errors.summary}
+              onRetry={() => refetchSection("summary")}
             />
-          </div>
-          <div className="col-span-12 sm:col-span-6 xl:col-span-3">
-            <StatCard
-              label="Dossiers en attente"
-              value={String(pendingCount)}
-              icon={Clock3}
-              accent="orange"
-              detail={
-                <>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${summary.pendingDossiers.urgent > 0
-                      ? "bg-[#ffede2] text-[#c2672a]"
-                      : "bg-[#f0f3f6] text-[#7d8c9a]"
-                      }`}
-                  >
-                    {summary.pendingDossiers.urgent} urgent{summary.pendingDossiers.urgent > 1 ? "s" : ""}
-                  </span>
-                  {summary.pendingDossiers.avgValidationHours !== null && (
-                    <strong className="text-[#3a5266]">Validation : {summary.pendingDossiers.avgValidationHours}h</strong>
-                  )}
-                </>
-              }
-            />
-          </div>
-          <div className="col-span-12 sm:col-span-6 xl:col-span-3">
-            <StatCard
-              label="Utilisateurs plateforme"
-              value={summary.users.total.toLocaleString("fr-FR")}
-              trend={visibleTrend(summary.users.trend, summary.users.total)}
-              icon={Users}
-              accent="violet"
-              detail={
-                <>
-                  <span>Directions, enseignants &amp; agents</span>
-                  <strong className="text-[#3a5266]">
-                    {summary.users.activeToday.toLocaleString("fr-FR")} actif{summary.users.activeToday > 1 ? "s" : ""} aujourd&apos;hui
-                  </strong>
-                </>
-              }
-            />
-          </div>
-          <div className="col-span-12 sm:col-span-6 xl:col-span-3">
-            <StatCard
-              label="Démonstrations converties"
-              value={summary.students.total.toLocaleString("fr-FR")}
-              trend={visibleTrend(summary.students.trend, summary.students.total)}
-              icon={GraduationCap}
-              accent="green"
-              detail={
-                <>
-                  <span>Demandes reçues en ligne</span>
-                  <strong className="text-[#3a5266]">
-                    {summary.students.renewalRate !== null && (
-                    <strong className="text-[#3a5266]">{summary.students.renewalRate}% conversion</strong>
-                  )}
-                  </strong>
-                </>
-              }
-            />
-          </div>
-          <div className="col-span-12 sm:col-span-6 xl:col-span-3">
-            <StatCard
-              label="Écoles suspendues"
-              value={String(summary.counts.suspended)}
-              icon={Building2}
-              accent="orange"
-              detail={
-                <>
-                  <span>Abonnements suspendus</span>
-                  <strong className="text-[#3a5266]">
-                    {summary.counts.all} école{summary.counts.all > 1 ? "s" : ""} au total
-                  </strong>
-                </>
-              }
-            />
-          </div>
-          <div className="col-span-12 sm:col-span-6 xl:col-span-3">
-            <StatCard
-              label="Paiements en retard"
-              value={String(summary.counts.overdue)}
-              icon={Clock3}
-              accent="orange"
-              detail={
-                <>
-                  <span>Abonnements &gt; 30 jours</span>
-                  <strong className="text-[#3a5266]">
-                    {summary.counts.trial} en essai gratuit
-                  </strong>
-                </>
-              }
-            />
-          </div>
-        </div>
-      ) : null}
+          )}
+          {isSectionLoading(statuses, "summary") ? (
+            <div className="mb-5 grid grid-cols-12 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="col-span-12 sm:col-span-6 xl:col-span-3">
+                  <StatCardSkeleton />
+                </div>
+              ))}
+            </div>
+          ) : summary ? (
+            <div className="mb-5 grid grid-cols-12 gap-3">
+              <div className="col-span-12 sm:col-span-6 xl:col-span-3">
+                <StatCard
+                  label="Écoles actives"
+                  value={String(summary.schools.active)}
+                  trend={visibleTrend(summary.schools.trend, summary.schools.active)}
+                  icon={Building2}
+                  detail={
+                    <>
+                      <span>Réparties sur {summary.schools.provinces} commune{summary.schools.provinces > 1 ? "s" : ""}</span>
+                      <strong className="text-[#3a5266]">
+                        Taux d&apos;activité <b className="text-[#23906b]">{summary.schools.activityRate}%</b>
+                      </strong>
+                    </>
+                  }
+                />
+              </div>
+              <div className="col-span-12 sm:col-span-6 xl:col-span-3">
+                <StatCard
+                  label="Dossiers en attente"
+                  value={String(pendingCount)}
+                  icon={Clock3}
+                  accent="orange"
+                  detail={
+                    <>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${summary.pendingDossiers.urgent > 0
+                          ? "bg-[#ffede2] text-[#c2672a]"
+                          : "bg-[#f0f3f6] text-[#7d8c9a]"
+                          }`}
+                      >
+                        {summary.pendingDossiers.urgent} urgent{summary.pendingDossiers.urgent > 1 ? "s" : ""}
+                      </span>
+                      {summary.pendingDossiers.avgValidationHours !== null && (
+                        <strong className="text-[#3a5266]">Validation : {summary.pendingDossiers.avgValidationHours}h</strong>
+                      )}
+                    </>
+                  }
+                />
+              </div>
+              <div className="col-span-12 sm:col-span-6 xl:col-span-3">
+                <StatCard
+                  label="Utilisateurs plateforme"
+                  value={summary.users.total.toLocaleString("fr-FR")}
+                  trend={visibleTrend(summary.users.trend, summary.users.total)}
+                  icon={Users}
+                  accent="violet"
+                  detail={
+                    <>
+                      <span>Directions, enseignants &amp; agents</span>
+                      <strong className="text-[#3a5266]">
+                        {summary.users.activeToday.toLocaleString("fr-FR")} actif{summary.users.activeToday > 1 ? "s" : ""} aujourd&apos;hui
+                      </strong>
+                    </>
+                  }
+                />
+              </div>
+              <div className="col-span-12 sm:col-span-6 xl:col-span-3">
+                <StatCard
+                  label="Démonstrations converties"
+                  value={summary.students.total.toLocaleString("fr-FR")}
+                  trend={visibleTrend(summary.students.trend, summary.students.total)}
+                  icon={GraduationCap}
+                  accent="green"
+                  detail={
+                    <>
+                      <span>Demandes reçues en ligne</span>
+                      <strong className="text-[#3a5266]">
+                        {summary.students.renewalRate !== null && (
+                        <strong className="text-[#3a5266]">{summary.students.renewalRate}% conversion</strong>
+                      )}
+                      </strong>
+                    </>
+                  }
+                />
+              </div>
+              <div className="col-span-12 sm:col-span-6 xl:col-span-3">
+                <StatCard
+                  label="Écoles suspendues"
+                  value={String(summary.counts.suspended)}
+                  icon={Building2}
+                  accent="orange"
+                  detail={
+                    <>
+                      <span>Abonnements suspendus</span>
+                      <strong className="text-[#3a5266]">
+                        {summary.counts.all} école{summary.counts.all > 1 ? "s" : ""} au total
+                      </strong>
+                    </>
+                  }
+                />
+              </div>
+              <div className="col-span-12 sm:col-span-6 xl:col-span-3">
+                <StatCard
+                  label="Paiements en retard"
+                  value={String(summary.counts.overdue)}
+                  icon={Clock3}
+                  accent="orange"
+                  detail={
+                    <>
+                      <span>Abonnements &gt; 30 jours</span>
+                      <strong className="text-[#3a5266]">
+                        {summary.counts.trial} en essai gratuit
+                      </strong>
+                    </>
+                  }
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="mb-5">
+              <SectionUnavailable label="Les statistiques générales" />
+            </div>
+          )}
+        </>
+      )}
 
       {/* Business tab: Alertes priorité */}
+      {activeTab === "business" && isSectionError(statuses, "alerts") && (
+        <SectionErrorBanner
+          label="Alertes"
+          message={errors.alerts}
+          onRetry={() => refetchSection("alerts")}
+        />
+      )}
       {activeTab === "business" && alerts && alerts.length > 0 && (
         <div className="mb-5">
           <AlertPanel alerts={alerts} />
@@ -950,35 +1179,106 @@ export default function DashboardPage() {
       {activeTab === "business" && (
         <div className="mb-5 grid grid-cols-12 items-stretch gap-3">
           <div className="col-span-12 min-h-[320px] min-w-0 xl:col-span-9">
-            <GrowthChart growth={growth} />
+            {isSectionError(statuses, "growth") ? (
+              <>
+                <SectionErrorBanner
+                  label="Croissance"
+                  message={errors.growth}
+                  onRetry={() => refetchSection("growth")}
+                />
+                <SectionUnavailable label="Le graphique de croissance" />
+              </>
+            ) : isSectionLoading(statuses, "growth") ? (
+              <ChartSkeleton />
+            ) : (
+              <GrowthChart growth={growth} />
+            )}
           </div>
-          <div className="col-span-12 flex min-h-[320px] flex-col gap-3 xl:col-span-3">
-            <div className="min-h-0 flex-1">
-              <ActivityPanel items={activityLog} />
+          <div className="col-span-12 flex flex-col gap-3 xl:col-span-3 xl:min-h-[320px]">
+            <div className="xl:min-h-0 xl:flex-1">
+              {isSectionError(statuses, "activity") ? (
+                <>
+                  <SectionErrorBanner
+                    label="Journal d’activité"
+                    message={errors.activity}
+                    onRetry={() => refetchSection("activity")}
+                  />
+                  <SectionUnavailable label="Le journal d’activité" />
+                </>
+              ) : isSectionLoading(statuses, "activity") ? (
+                <ActivityFeedSkeleton />
+              ) : (
+                <ActivityPanel items={activityLog} updatedAt={activityUpdatedAt} />
+              )}
             </div>
-            <div className="min-h-0 flex-1">
-              <TicketPanel tickets={tickets} />
+            <div className="xl:min-h-0 xl:flex-1">
+              {isSectionError(statuses, "tickets") ? (
+                <>
+                  <SectionErrorBanner
+                    label="Tickets"
+                    message={errors.tickets}
+                    onRetry={() => refetchSection("tickets")}
+                  />
+                  <SectionUnavailable label="Les tickets" />
+                </>
+              ) : (
+                <TicketPanel tickets={tickets} />
+              )}
             </div>
           </div>
         </div>
       )}
 
       {/* Business tab: Bottom Grid */}
-      {activeTab === "business" && (
-        <BottomGrid metrics={metrics} />
+          {isSectionError(statuses, "metrics") && (
+            <SectionErrorBanner
+              label="Indicateurs"
+              message={errors.metrics}
+              onRetry={() => refetchSection("metrics")}
+            />
+          )}
+          {isSectionLoading(statuses, "metrics") ? (
+            <div className="grid grid-cols-12 gap-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="col-span-12 sm:col-span-6 xl:col-span-4">
+                  <StatCardSkeleton />
+                </div>
+              ))}
+            </div>
+          ) : metrics ? (
+            <BottomGrid metrics={metrics} />
+          ) : (
+            <SectionUnavailable label="Les indicateurs métier" />
+          )}
+        </div>
       )}
 
       {/* Infrastructure tab: System Health */}
       {activeTab === "infrastructure" && (
-        <div className="space-y-4">
-          <SystemHealthPanel health={systemHealth} alerts={alerts} />
+        <div
+          role="tabpanel"
+          id="dashboard-panel-infrastructure"
+          aria-labelledby="dashboard-tab-infrastructure"
+          tabIndex={0}
+          className="space-y-4"
+        >
+          {isSectionError(statuses, "health") && (
+            <SectionErrorBanner
+              label="État du service"
+              message={errors.health}
+              onRetry={() => refetchSection("health")}
+            />
+          )}
+          {isSectionLoading(statuses, "health") ? (
+            <ChartSkeleton />
+          ) : (
+            <SystemHealthPanel health={systemHealth} alerts={alerts} />
+          )}
 
-          {/* Alertes critiques - Infrastructure tab */}
-          {alerts && alerts.filter((a) => a.severity === "critical").length > 0 && (
+          {/* Alertes priorité — panneau complet (même source que l'onglet Métiers) */}
+          {alerts && alerts.length > 0 && (
             <div className="mb-5">
-              <AlertPanel
-                alerts={alerts.filter((a) => a.severity === "critical")}
-              />
+              <AlertPanel alerts={alerts} />
             </div>
           )}
 
@@ -993,7 +1293,7 @@ export default function DashboardPage() {
               </span>
             </div>
             <div className="p-4">
-              <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-3 sm:gap-3">
                 <div className="rounded-lg bg-sky-50 p-3">
                   <p className="text-[11px] font-bold text-sky-600">{systemHealth?.stats.totalTenants ?? "—"}</p>
                   <p className="text-[11px] text-sky-500">Inscrites</p>
@@ -1010,73 +1310,6 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* Détails techniques — libellés simples */}
-          {systemHealth ? <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-12 sm:col-span-6 xl:col-span-3">
-              <div className="flex h-full flex-col justify-between rounded-xl border border-[#e4eaf0] bg-white p-4 shadow-[0_2px_8px_rgba(20,40,65,0.03)]">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">Vitesse de la base</p>
-                  <p className="mt-2 text-[22px] font-black tracking-tight text-[#152a3d]">
-                    {systemHealth.database.latencyMs} ms
-                  </p>
-                  <p className="mt-1 text-[11px] font-medium text-[#8c9ca9]">
-                    {systemHealth.database.latencyMs < 50 ? "Très rapide" : "Correcte"}
-                  </p>
-                </div>
-                <div className="mt-3 pt-2.5 border-t border-[#f0f4f7] flex items-center justify-between gap-2 text-[12px] text-[#6d7f90]">
-                  <span className="inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold bg-emerald-100 text-emerald-700">
-                    Connectée
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="col-span-12 sm:col-span-6 xl:col-span-3">
-              <div className="flex h-full flex-col justify-between rounded-xl border border-[#e4eaf0] bg-white p-4 shadow-[0_2px_8px_rgba(20,40,65,0.03)]">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">Charge serveur</p>
-                  <p className="mt-2 text-[22px] font-black tracking-tight text-[#152a3d]">
-                    {Math.round((systemHealth.memory.heapUsedMB / systemHealth.memory.heapTotalMB) * 100)}%
-                  </p>
-                  <p className="mt-1 text-[11px] font-medium text-[#8c9ca9]">
-                    {systemHealth.memory.usagePercent < 85 ? "Normal" : "Élevé"}
-                  </p>
-                </div>
-                <div className="mt-3 pt-2.5 border-t border-[#f0f4f7] flex items-center justify-between gap-2 text-[12px] text-[#6d7f90]">
-                  <div className="h-1.5 w-24 bg-[#e2e8f0] rounded-full overflow-hidden">
-                    <div className="h-full bg-sky-500 rounded-full" style={{ width: `${systemHealth.memory.usagePercent}%` }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="col-span-12 sm:col-span-6 xl:col-span-3">
-              <div className="flex h-full flex-col justify-between rounded-xl border border-[#e4eaf0] bg-white p-4 shadow-[0_2px_8px_rgba(20,40,65,0.03)]">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">Sans interruption</p>
-                  <p className="mt-2 text-[22px] font-black tracking-tight text-[#152a3d]">
-                    {systemHealth.uptime}
-                  </p>
-                  <p className="mt-1 text-[11px] font-medium text-[#8c9ca9]">depuis le dernier démarrage</p>
-                </div>
-              </div>
-            </div>
-            <div className="col-span-12 sm:col-span-6 xl:col-span-3">
-              <div className="flex h-full flex-col justify-between rounded-xl border border-[#e4eaf0] bg-white p-4 shadow-[0_2px_8px_rgba(20,40,65,0.03)]">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">Total</p>
-                  <p className="mt-2 text-[22px] font-black tracking-tight text-[#152a3d]">
-                    {systemHealth.stats.totalTenants}
-                  </p>
-                  <p className="mt-1 text-[11px] font-medium text-[#8c9ca9]">
-                    école{systemHealth.stats.totalTenants > 1 ? "s" : ""} · {systemHealth.stats.totalUsers} utilisateur{systemHealth.stats.totalUsers > 1 ? "s" : ""}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div> : (
-            <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-[11px] text-amber-800">
-              Indicateurs techniques indisponibles.
-            </section>
-          )}
         </div>
       )}
     </div>

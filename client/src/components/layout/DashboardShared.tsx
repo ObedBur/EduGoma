@@ -29,6 +29,11 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { alertsApi, type Alert } from "@/lib/api";
+import {
+  fetchPriorityAlerts,
+  setCachedPriorityAlerts,
+  subscribePriorityAlerts,
+} from "@/lib/priority-alerts";
 
 export type Icon = typeof LayoutDashboard;
 
@@ -149,7 +154,7 @@ export function DashboardSidebar({
         </button>
         <div className={`leading-none overflow-hidden transition-all duration-300 ${desktopCollapsed ? 'lg:w-0 lg:opacity-0 lg:hidden' : 'w-auto opacity-100'}`}>
           <div className="text-[15px] font-extrabold tracking-[-0.03em] text-[#142c42]">EduGoma</div>
-          <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.13em] text-[#8793a2]">Super Admin</div>
+          <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.13em] text-[#8793a2]">Super Admin</div>
         </div>
 
         {/* Bouton de fermeture / réduction dans le header de la sidebar (Style ChatGPT) */}
@@ -184,7 +189,7 @@ export function DashboardSidebar({
       <nav className={`flex-1 overflow-y-auto py-5 ${desktopCollapsed ? 'lg:px-2 px-3' : 'px-3'}`}>
         {navGroups.map((group) => (
           <div key={group.label} className="mb-5">
-            <p className={`mb-2 px-3 text-[9px] font-bold uppercase tracking-[0.12em] text-[#9aa5b1] transition-all duration-300 ${desktopCollapsed ? 'lg:hidden' : 'block'}`}>
+            <p className={`mb-2 px-3 text-[11px] font-bold uppercase tracking-[0.12em] text-[#9aa5b1] transition-all duration-300 ${desktopCollapsed ? 'lg:hidden' : 'block'}`}>
               {group.label}
             </p>
             <div className="space-y-1">
@@ -209,7 +214,7 @@ export function DashboardSidebar({
                     </span>
                     {item.badge && !desktopCollapsed && (
                       <span
-                        className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold hidden lg:block ${
+                        className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold hidden lg:block ${
                           item.href === "/dashboard/requests"
                             ? "bg-[#e2f0ff] text-[#3f81b7]"
                             : "bg-[#ffe5e7] text-[#d76672]"
@@ -241,14 +246,14 @@ export function DashboardSidebar({
 
       <div className={`border-t border-[#e5ebf1] py-4 overflow-hidden transition-all duration-300 ${desktopCollapsed ? 'lg:px-2 lg:flex lg:justify-center px-4' : 'px-4'}`}>
         <div className={`flex items-center gap-2.5 ${desktopCollapsed ? 'lg:justify-center' : ''}`}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d8e5ec] text-[10px] font-bold text-[#42647c]">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d8e5ec] text-[11px] font-bold text-[#42647c]">
             {initials || "JM"}
           </div>
           <div className={`min-w-0 transition-all duration-300 ${desktopCollapsed ? 'lg:w-0 lg:opacity-0 lg:hidden' : 'flex-1'}`}>
-            <p className="truncate text-[10px] font-bold text-[#33485d]">
+            <p className="truncate text-[11px] font-bold text-[#33485d]">
               {user ? `${user.firstName} ${user.lastName}` : "Dr. Julien Makiese"}
             </p>
-            <p className="truncate text-[9px] text-[#8b96a4]">
+            <p className="truncate text-[11px] text-[#8b96a4]">
               {user?.email ?? "superadmin@edugoma.cd"}
             </p>
           </div>
@@ -293,18 +298,24 @@ export function DashboardTopbar({
       : item.href && pathname.startsWith(item.href)
   );
 
-  // Charger les alertes dès le montage pour afficher le compteur immédiatement
+  // Source partagée : cache court + même limite que le dashboard
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const alerts = await alertsApi.getPriority(8);
+        const alerts = await fetchPriorityAlerts();
         if (!cancelled) setNotifAlerts(alerts);
       } catch {
         // Silencieux
       }
     })();
-    return () => { cancelled = true; };
+    const unsubscribe = subscribePriorityAlerts((alerts) => {
+      if (!cancelled) setNotifAlerts(alerts);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   // Close dropdowns on outside click
@@ -327,7 +338,8 @@ export function DashboardTopbar({
     if (next) {
       setNotifLoading(true);
       try {
-        const alerts = await alertsApi.getPriority(8);
+        // Force uniquement si le cache est expiré (fetchPriorityAlerts gère le TTL)
+        const alerts = await fetchPriorityAlerts();
         setNotifAlerts(alerts);
       } catch {
         // Silencieux
@@ -341,7 +353,9 @@ export function DashboardTopbar({
     e.stopPropagation();
     try {
       await alertsApi.resolve(id);
-      setNotifAlerts((prev) => prev.filter((a) => a.id !== id));
+      const next = notifAlerts.filter((a) => a.id !== id);
+      setNotifAlerts(next);
+      setCachedPriorityAlerts(next);
     } catch {
       // Silencieux
     }
@@ -385,7 +399,7 @@ export function DashboardTopbar({
       </button>
 
       {/* Breadcrumb — skeleton si auth en cours (visible à partir de md) */}
-      <div className="hidden items-center gap-2 text-[10px] text-[#607182] md:flex ml-1">
+      <div className="hidden items-center gap-2 text-[11px] text-[#607182] md:flex ml-1">
         {isLoading ? (
           <>
             <Skeleton className="h-3 w-20" />
@@ -415,7 +429,7 @@ export function DashboardTopbar({
         <input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="h-8 w-full rounded-md border border-[#e0e7ee] bg-[#f7f9fb] pl-7 sm:pl-9 pr-6 sm:pr-7 text-[10px] text-[#33485c] outline-none placeholder:text-[#9aa6b4] focus:border-[#76a8cd] focus:bg-white transition-colors"
+          className="h-8 w-full rounded-md border border-[#e0e7ee] bg-[#f7f9fb] pl-7 sm:pl-9 pr-6 sm:pr-7 text-[11px] text-[#33485c] outline-none placeholder:text-[#9aa6b4] focus:border-[#76a8cd] focus:bg-white transition-colors"
           placeholder="Rechercher..."
         />
         {searchQuery && (
@@ -443,7 +457,7 @@ export function DashboardTopbar({
         >
           <Bell size={17} />
           {notifAlerts.length > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#d85a68] px-1 text-[9px] font-bold text-white shadow-xs animate-in zoom-in-50">
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#d85a68] px-1 text-[11px] font-bold text-white shadow-xs animate-in zoom-in-50">
               {notifAlerts.length}
             </span>
           )}
@@ -455,14 +469,14 @@ export function DashboardTopbar({
               <div className="flex items-center gap-2">
                 <h3 className="text-[12px] font-bold text-[#1a2f42]">Notifications</h3>
                 {notifAlerts.length > 0 && (
-                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-bold text-red-700">
+                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700">
                     {notifAlerts.length} active{notifAlerts.length > 1 ? "s" : ""}
                   </span>
                 )}
               </div>
               <Link
                 href="/dashboard/activity-log"
-                className="text-[10px] font-semibold text-[#2f6f9f] hover:underline"
+                className="text-[11px] font-semibold text-[#2f6f9f] hover:underline"
                 onClick={() => setNotifOpen(false)}
               >
                 Journal d&apos;activité →
@@ -480,7 +494,7 @@ export function DashboardTopbar({
                 <div className="p-8 text-center">
                   <CheckCircle2 size={26} className="mx-auto text-emerald-500 mb-2" />
                   <p className="text-[11px] font-bold text-[#23394e]">Tout est sous contrôle</p>
-                  <p className="text-[10px] text-[#8c9ca9] mt-0.5">Aucune alerte prioritaire en attente</p>
+                  <p className="text-[11px] text-[#8c9ca9] mt-0.5">Aucune alerte prioritaire en attente</p>
                 </div>
               ) : (
                 notifAlerts.map((a) => {
@@ -511,13 +525,13 @@ export function DashboardTopbar({
                           <button
                             onClick={(e) => handleResolveAlert(a.id, e)}
                             title="Marquer comme résolu"
-                            className="cursor-pointer shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold text-[#6e8294] hover:bg-white hover:text-emerald-700 hover:shadow-xs border border-transparent hover:border-[#d5e0ea] transition-all"
+                            className="cursor-pointer shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold text-[#6e8294] hover:bg-white hover:text-emerald-700 hover:shadow-xs border border-transparent hover:border-[#d5e0ea] transition-all"
                           >
                             Résoudre
                           </button>
                         </div>
-                        <p className="mt-1 text-[10px] text-[#5a6f80] leading-snug line-clamp-2">{a.message}</p>
-                        <div className="mt-1.5 flex items-center gap-2 text-[8px] text-[#9aa6b2]">
+                        <p className="mt-1 text-[11px] text-[#5a6f80] leading-snug line-clamp-2">{a.message}</p>
+                        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[#9aa6b2]">
                           <span className="font-semibold uppercase tracking-wider">{a.source || "SYSTÈME"}</span>
                           <span>•</span>
                           <span>{new Date(a.createdAt).toLocaleDateString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
@@ -536,7 +550,7 @@ export function DashboardTopbar({
       <div className="relative ml-1 sm:ml-2" ref={profileRef}>
         <button 
           onClick={() => setProfileOpen(!profileOpen)}
-          className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#c9dce5] text-[10px] font-extrabold text-[#406079] shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#102d48] focus:ring-offset-2 transition-all"
+          className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#c9dce5] text-[11px] font-extrabold text-[#406079] shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#102d48] focus:ring-offset-2 transition-all"
           aria-label="Menu profil"
         >
           {isLoading ? (
@@ -553,7 +567,7 @@ export function DashboardTopbar({
               <p className="text-[12px] font-bold text-[#142c42] truncate">
                 {user ? `${user.firstName} ${user.lastName}` : "Dr. Julien Makiese"}
               </p>
-              <p className="text-[10px] text-[#8793a2] truncate mt-0.5">
+              <p className="text-[11px] text-[#8793a2] truncate mt-0.5">
                 {user?.email ?? "superadmin@edugoma.cd"}
               </p>
             </div>
@@ -604,6 +618,8 @@ export function StatCard({
   trend,
   icon: IconComponent,
   accent = "blue",
+  onClick,
+  active = false,
 }: {
   label: string;
   value: string;
@@ -611,6 +627,10 @@ export function StatCard({
   trend?: string;
   icon: Icon;
   accent?: "blue" | "green" | "orange" | "violet";
+  /** Rend la carte cliquable (ex. filtrer la liste). Sans onClick, carte statique. */
+  onClick?: () => void;
+  /** État actif : la carte reflète le filtre actuellement appliqué. */
+  active?: boolean;
 }) {
   const accents = {
     blue: "bg-[#eaf3fa] text-[#2c6e9e]",
@@ -620,12 +640,35 @@ export function StatCard({
   };
   const isNeutralTrend = !trend || trend === "+0" || trend === "+0.0%" || trend === "0%";
   const isNegativeTrend = trend ? trend.startsWith("-") : false;
+  const interactive = typeof onClick === "function" && Boolean(onClick);
 
   return (
-    <div className="h-full rounded-xl border border-[#e4eaf0] bg-white p-4 shadow-[0_2px_8px_rgba(20,40,65,0.03)] hover:shadow-[0_4px_12px_rgba(20,40,65,0.06)] hover:border-[#cfdbe5] transition-all duration-200 flex flex-col justify-between">
+    <div
+      {...(interactive
+        ? {
+            role: "button",
+            tabIndex: 0,
+            "aria-pressed": active,
+            onClick,
+            onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick?.();
+              }
+            },
+          }
+        : {})}
+      className={`h-full rounded-xl border bg-white p-4 shadow-[0_2px_8px_rgba(20,40,65,0.03)] flex flex-col justify-between transition-all duration-200 ${
+        interactive ? "cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#76a8cd]" : ""
+      } ${
+        active
+          ? "border-[#76a8cd] bg-[#f5fafd] shadow-[0_4px_12px_rgba(20,40,65,0.08)] ring-1 ring-[#76a8cd]"
+          : "border-[#e4eaf0] hover:shadow-[0_4px_12px_rgba(20,40,65,0.06)] hover:border-[#cfdbe5]"
+      }`}
+    >
       <div>
         <div className="flex items-center justify-between">
-          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#7d8c9a]">{label}</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#5a6b7c]">{label}</p>
           <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${accents[accent]}`}>
             <IconComponent size={14} />
           </span>
@@ -634,9 +677,9 @@ export function StatCard({
           <p className="text-[26px] font-extrabold tracking-[-0.04em] text-[#152a3d]">{value}</p>
           {trend && (
             <span
-              className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+              className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
                 isNeutralTrend
-                  ? "bg-[#f0f3f6] text-[#7d8c9a]"
+                  ? "bg-[#f0f3f6] text-[#5a6b7c]"
                   : isNegativeTrend
                   ? "bg-[#fdeeed] text-[#c04845]"
                   : "bg-[#e5f7ef] text-[#23906b]"
@@ -647,7 +690,7 @@ export function StatCard({
           )}
         </div>
       </div>
-      <div className="mt-3.5 pt-2.5 border-t border-[#f0f4f7] flex items-center justify-between gap-2 text-[10px] text-[#6d7f90]">
+      <div className="mt-3.5 pt-2.5 border-t border-[#f0f4f7] flex items-center justify-between gap-2 text-[11px] text-[#64748b]">
         {detail}
       </div>
     </div>

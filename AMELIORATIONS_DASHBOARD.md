@@ -34,12 +34,48 @@ Créé le 2026-09-23 — méthode : **un lot à la fois**, validation visuelle a
 
 Audit du 2026-09-23 : chaque donnée y était affichée 2 à 3 fois (DB, uptime, écoles/utilisateurs, charge avec deux valeurs contradictoires 88,7 % vs 89 %, alertes critiques), statut global « Tout va bien » contredit par ses propres signaux (charge Élevé + alerte critique), barre de charge pleine largeur, tuiles centrées à libellés sur 3 lignes.
 
-- [ ] 4.1 **Statut calculé depuis les signaux** : alerte critique → « Dégradé » ; sinon charge ≥ 85 % → « Sous surveillance » ; sinon « Opérationnel ». Pill d'en-tête et bannière alignées sur cet état calculé (fini le « Tout va bien » contredit).
-- [ ] 4.2 **Carte d'état unique** : en-tête (statut + uptime, sans le pléonasme « sans interruption ») + 4 tuiles compactes alignées à gauche (Base de données, Charge, Écoles, Utilisateurs) — chaque donnée une seule fois.
-- [ ] 4.3 **Supprimer le bloc « Alertes urgentes » interne** à la carte d'état : doublon de la carte « Alertes priorité » (qui a le liseré, le badge et l'horodatage).
-- [ ] 4.4 **Supprimer les 4 cartes basses dupliquées** (Vitesse de la base, Charge serveur, Sans interruption, Total) de l'onglet infrastructure.
-- [ ] 4.5 **Une seule valeur de charge** : `usagePercent` partout (supprime la contradiction 88,7 % vs 89 %) ; jauge contenue dans la tuile (h-1.5) au lieu de la barre pleine largeur.
-- [ ] 4.6 **Conserver** « Alertes priorité » (style compact du lot 3) et « Écoles sur la plateforme » (seule source de la répartition inscrites/actives/en attente).
+- [x] 4.1 **Statut calculé depuis les signaux** : alerte critique → « Dégradé » ; sinon charge ≥ 85 % → « Sous surveillance » ; sinon « Opérationnel ». Pill d'en-tête et bannière alignées sur cet état calculé (fini le « Tout va bien » contredit).
+- [x] 4.2 **Carte d'état unique** : en-tête (statut + uptime, sans le pléonasme « sans interruption ») + 4 tuiles compactes alignées à gauche (Base de données, Charge, Écoles, Utilisateurs) — chaque donnée une seule fois.
+- [x] 4.3 **Supprimer le bloc « Alertes urgentes » interne** à la carte d'état : doublon de la carte « Alertes priorité » (qui a le liseré, le badge et l'horodatage).
+- [x] 4.4 **Supprimer les 4 cartes basses dupliquées** (Vitesse de la base, Charge serveur, Sans interruption, Total) de l'onglet infrastructure.
+- [x] 4.5 **Une seule valeur de charge** : `usagePercent` partout (supprime la contradiction 88,7 % vs 89 %) ; jauge contenue dans la tuile (h-1.5) au lieu de la barre pleine largeur.
+- [x] 4.6 **Conserver** « Alertes priorité » (style compact du lot 3) et « Écoles sur la plateforme » (seule source de la répartition inscrites/actives/en attente).
+
+---
+
+## Page Écoles — Audit « équipe 10 experts » (2026-09-24)
+
+Page concernée : `http://localhost:3000/dashboard/schools` + tiroir de détail.
+Fichiers : `client/src/app/(dashboard)/dashboard/schools/page.tsx`, `client/src/components/ui/list-table.tsx`.
+Règle : CLARTÉ → EFFICACITÉ → HIÉRARCHIE → FEEDBACK → ESTHÉTIQUE. Chaque changement doit aider l'admin à gérer les écoles plus vite et avec moins d'erreurs.
+Forces préservées : recherche debounce 300 ms, pagination/tri/filtres côté serveur, badges icône+texte, optimistic UI + rollback, chip « Synchronisé ».
+
+### Lot A — Corrections factuelles & accessibilité
+
+- [x] A.1 **Désync « Par page »** : `DEFAULT_LIST_QUERY.limit = 30` mais options `[10,20,50]` → ajout de 30 (`list-table.tsx`).
+- [x] A.2 **`aria-sort`** sur le `<th>` triable (état de tri exposé aux lecteurs d'écran).
+- [x] A.3 **Ligne tableau activable au clavier** : `tabIndex`, `Enter`/`Espace`, anneau `focus-visible`.
+- [x] A.4 **Tiroir accessible** : `role="dialog"`, `aria-modal`, `aria-labelledby`, focus initial + piège à focus (Tab), fermeture `Échap`, restauration du focus ; effet monté une seule fois via `onCloseRef`.
+
+### Lot B — Typographie & contraste *(à faire)*
+
+- [x] B.1 Remonter l'échelle sous 11 px (thead `8px`, footer/filtres/cellules `9-10px`, tiroir `8-9px`) vers corps 12 px / métadonnées 11 px, aligné sur le dashboard.
+- [x] B.2 Contraste WCAG AA : texte secondaire trop clair (`#9aa5af`, `#8a97a4`) → capitales `#5a6b7c` (~5.5:1), secondaire `#64748b` (~4.8:1).
+- [x] B.3 Pluralisation « comptes » + libellé honnête « Comptes »/« Effectif » (fin du texte technique « élèves à venir ») (`page.tsx`).
+
+### Lot C — UX tableau & filtres *(à faire)*
+
+- [ ] C.1 KPI cards cliquables → appliquent le filtre correspondant.
+- [ ] C.2 Chips de filtres actifs + bouton « Réinitialiser les filtres ».
+- [ ] C.3 En-tête de tableau collant (sticky thead).
+
+### Lot D — Motion & responsive *(à faire)*
+
+- [ ] D.1 Slide-in du tiroir ~200 ms + fondu du backdrop.
+- [ ] D.2 États `focus-visible` sur les boutons du tiroir.
+- [ ] D.3 Ajustements mobile (tiroir pleine largeur, actions hors écran en scroll horizontal).
+
+> Écarté : centralisation des couleurs en design tokens (chantier transverse au-delà de la page Écoles).
 
 ---
 

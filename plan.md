@@ -2,7 +2,7 @@
 
 Document de suivi des améliorations prévues (issues GitHub à créer plus tard si besoin).
 
-**État :** 🔴 + 🟠 + 🟠🟡 + #1–#5 faits (voir bas de page) · reste à planifier ci-dessous.
+**État :** 🔴 + 🟠 + 🟠🟡 + #1–#6 et #8 faits (voir bas de page) · #7 reste à planifier ci-dessous.
 
 ---
 
@@ -83,11 +83,29 @@ Document de suivi des améliorations prévues (issues GitHub à créer plus tard
 
 **Priorité :** haute  
 **Type :** fix  
+**État :** ✅ fait
 
-- `npx prisma migrate dev` échoue (drift)
-- Créer une migration SQL alignée sur le schéma actuel : `subscriptionStatus`, `subscriptionPaidAt`, `Payment`, `NotificationLog`
-- Documenter la procédure : `db push` le temps de la migration, puis migration propre
-- Vérifier CI / environnements neuf
+- Diagnostic : base créée via `db push` → table `_prisma_migrations` absente ; 2 migrations `init` obsolètes (colonnes retirées + tables manquantes : `subscriptionStatus`, `Payment`, `NotificationLog`, `Alert`, `Ticket`, etc.)
+- **Baseline unique** `prisma/migrations/20260924000000_baseline_init/` générée depuis `schema.prisma` (UTF-8 **sans BOM**)
+- Anciennes migrations supprimées
+- Base dev locale : `prisma migrate resolve --applied 20260924000000_baseline_init`
+- Vérifs :
+  - `migrate status` → up to date
+  - `migrate diff` (datasource ↔ schema) → vide
+  - `migrate dev --create-only` → pas de drift
+  - `migrate deploy` sur base neuve (`edugoma_fresh`) → OK
+  - jest 126/126 ✅ · tsc ✅
+
+### Procédure (dev / CI / env neuf)
+
+| Contexte | Commande |
+|----------|----------|
+| Env **neuf** (CI, nouveau poste) | `npx prisma migrate deploy` |
+| Dev local **existant** (déjà `db push`) | `npx prisma migrate resolve --applied 20260924000000_baseline_init` |
+| Après changement de `schema.prisma` | `npx prisma migrate dev --name <description>` |
+| **Ne plus** utiliser `db push` en dev | remplacé par migrate |
+
+> Note : ne pas réécrire le SQL avec `Out-File -Encoding utf8` (BOM → erreur shadow DB). Préférer `UTF8Encoding(false)`.
 
 ---
 
@@ -107,12 +125,14 @@ Document de suivi des améliorations prévues (issues GitHub à créer plus tard
 
 **Priorité :** moyenne  
 **Type :** test  
+**État :** ✅ fait
 
 - Parcours : create → validate → mark paid → suspend → reactivate
 - Garde : `JwtAuthGuard` + `SuperAdminGuard` sur chaque route
 - Idempotence paiement (un Payment par période)
 - `GET /admin/tenants/:id/users` et `suspended`
 - Régression sur les routes unifiées `PATCH /admin/tenants/:id/subscription`
+- Accès écoles (setup link) inclus — 10/10 verts via `npm run test:e2e`
 
 ---
 
@@ -135,6 +155,9 @@ Document de suivi des améliorations prévues (issues GitHub à créer plus tard
 | Impersonation super admin (#3) | ✅ |
 | Stats dashboard synchronisées (#4) | ✅ |
 | Seed réaliste Goma (#5) | ✅ |
+| Migration Prisma baseline (#6) | ✅ |
+| Accès écoles : lien set-password + envoi 3 canaux | ✅ |
+| Tests e2e admin écoles (#8) | ✅ |
 | Drawer : plan / paidAt réels + users API | ✅ |
 | StatCards « Abonnement en retard » calculées | ✅ |
 | Reload après inscription d’une école | ✅ |

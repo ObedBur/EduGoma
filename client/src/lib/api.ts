@@ -82,7 +82,7 @@ export interface SummaryStats {
 }
 
 export interface GrowthData {
-  months: number;
+  months: string[];
   labels: string[];
   schools: number[];
   students: number[];
@@ -90,12 +90,12 @@ export interface GrowthData {
 
 export interface MetricsData {
   onboarding: {
-    avgHours: number;
-    trend: number;
+    avgHours: number | null;
+    trend: number | null;
     trendLabel: string;
   };
   completionRate: {
-    rate: number;
+    rate: number | null;
     note: string;
   };
   storage: {
@@ -161,13 +161,6 @@ export interface Ticket {
   updatedAt: string;
 }
 
-export interface TicketStats {
-  total: number;
-  open: number;
-  inProgress: number;
-  urgent: number;
-}
-
 export const ticketsApi = {
   get: (params?: { status?: string; priority?: string; limit?: number }) => {
     const qs = new URLSearchParams();
@@ -177,8 +170,6 @@ export const ticketsApi = {
     const q = qs.toString();
     return request<Ticket[]>(`/admin/support/tickets${q ? `?${q}` : ""}`);
   },
-
-  getStats: () => request<TicketStats>("/admin/support/tickets/stats"),
 };
 
 // ── Health API ──────────────────────────────────────────────
@@ -272,6 +263,15 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  getSetupInfo: (token: string) =>
+    request<{ schoolName: string; expiresAt: string }>(`/auth/setup/${token}`),
+
+  completeSetup: (token: string, password: string) =>
+    request<{ message: string }>(`/auth/setup/${token}`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
 };
 
 export interface CreateTenantPayload {
@@ -280,6 +280,18 @@ export interface CreateTenantPayload {
   email?: string;
   commune?: string;
   type?: string;
+}
+
+export type ChannelNotifyStatus = boolean | null;
+
+export interface ValidateAccessResult {
+  message?: string;
+  notifications?: {
+    sms: ChannelNotifyStatus;
+    whatsapp: ChannelNotifyStatus;
+    email: ChannelNotifyStatus;
+  };
+  setupLinkExpiresAt?: string;
 }
 
 export const tenantsApi = {
@@ -311,9 +323,14 @@ export const tenantsApi = {
       body: JSON.stringify({}),
     }),
   validate: (id: string, payload: { validatedBy: string }) =>
-    request<{ success: boolean; data?: unknown }>(`/admin/tenants/${id}/validate`, {
+    request<ValidateAccessResult>(`/admin/tenants/${id}/validate`, {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+  resendAccess: (id: string) =>
+    request<ValidateAccessResult>(`/admin/tenants/${id}/resend-access`, {
+      method: "POST",
+      body: JSON.stringify({}),
     }),
   deactivate: (id: string, reason?: string) =>
     request<{ message: string }>(`/admin/tenants/${id}/deactivate`, {

@@ -32,6 +32,7 @@ import {
   type SchoolStats,
   type TenantListCounts,
   type TenantSummary,
+  type ValidateAccessResult,
 } from "@/lib/api";
 import {
   ListTable,
@@ -193,7 +194,7 @@ const validationStyles: Record<School["validationTone"], string> = { green: "bg-
 const subscriptionStyles: Record<School["subscriptionTone"], string> = { blue: "bg-[#e6f1fc] text-[#4a86b7]", green: "bg-[#e5f7ef] text-[#379d78]", orange: "bg-[#fff0db] text-[#ba7938]", red: "bg-[#ffe5e5] text-[#c55d63]", violet: "bg-[#efeafb] text-[#7a5cc0]" };
 
 function Badge({ children, tone, icon }: { children: React.ReactNode; tone: string; icon?: React.ReactNode }) {
-  return <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[9px] font-bold ${tone}`}>{icon}{children}</span>;
+  return <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[11px] font-bold ${tone}`}>{icon}{children}</span>;
 }
 function ValidationBadge({ school }: { school: School }) {
   const icon = school.validationTone === "red" ? <AlertCircle size={10} /> : school.validationTone === "green" ? <Check size={10} /> : undefined;
@@ -230,6 +231,47 @@ function DetailDrawer({
   const [usersLoading, setUsersLoading] = useState(false);
   const [stats, setStats] = useState<SchoolStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const asideRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Accessibilité tiroir : focus initial, piège à focus (Tab), fermeture Échap,
+  // et restauration du focus sur l'élément précédemment actif à la fermeture.
+  // Dépendances vides : l'effet ne se monte qu'une fois (onClose passe par une ref).
+  useEffect(() => {
+    const node = asideRef.current;
+    if (!node) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    node.focus();
+    const FOCUSABLE =
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (e.key !== "Tab" || !node) return;
+      const focusables = Array.from(
+        node.querySelectorAll<HTMLElement>(FOCUSABLE),
+      ).filter((el) => el.offsetParent !== null);
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -279,39 +321,49 @@ function DetailDrawer({
   const studentsLabel = stats
     ? stats.students !== null
       ? String(stats.students)
-      : `${stats.users} comptes · élèves à venir`
+      : String(stats.users)
     : "—";
+  // Libellé honnête : « Effectif » seulement quand le nombre d'élèves existe,
+  // sinon on affiche le nombre de comptes (pas de donnée élèves côté serveur).
+  const effectifLabel = stats && stats.students === null ? "Comptes" : "Effectif";
   return (
     <>
       <button className="fixed inset-0 z-40 bg-[#0f2940]/25 backdrop-blur-[1px]" onClick={onClose} aria-label="Fermer les détails" />
-      <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[440px] flex-col bg-white shadow-[-10px_0_30px_rgba(22,50,73,0.15)]">
+      <aside
+        ref={asideRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="school-drawer-title"
+        tabIndex={-1}
+        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[440px] flex-col bg-white shadow-[-10px_0_30px_rgba(22,50,73,0.15)] outline-none"
+      >
         <div className="flex items-start justify-between border-b border-[#e8edf1] px-5 py-4">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e8f1f7] text-[#4e7895]"><Building2 size={18} /></div>
             <div className="min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#8c99a4]">Fiche établissement</p>
-              <h2 className="mt-1 truncate text-[16px] font-extrabold tracking-[-0.03em] text-[#1c344a]">{school.name}</h2>
-              <p className="mt-1 text-[9px] font-medium text-[#64788a]" title={school.id}>{shortId(school.id)}</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#5a6b7c]">Fiche établissement</p>
+              <h2 id="school-drawer-title" className="mt-1 truncate text-[16px] font-extrabold tracking-[-0.03em] text-[#1c344a]">{school.name}</h2>
+              <p className="mt-1 text-[11px] font-medium text-[#64788a]" title={school.id}>{shortId(school.id)}</p>
             </div>
           </div>
           <button onClick={onClose} className="cursor-pointer rounded-lg p-2 text-[#8a98a4] hover:bg-[#f3f6f8]" aria-label="Fermer"><X size={17} /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {notice && <div className="mb-3 rounded-md border border-[#cde9dc] bg-[#effaf5] px-3 py-2 text-[10px] font-semibold text-[#2b8e6b]">{notice}</div>}
+          {notice && <div className="mb-3 rounded-md border border-[#cde9dc] bg-[#effaf5] px-3 py-2 text-[12px] font-semibold text-[#2b8e6b]">{notice}</div>}
           <section className="border-b border-[#edf1f4] pb-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-[8px] font-bold uppercase tracking-[0.07em] text-[#9aa5af]">Commune</p>
-                <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-[#42596b]"><MapPin size={11} className="text-[#7895a7]" />{school.city || "Goma"}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-[#5a6b7c]">Commune</p>
+                <p className="mt-1 flex items-center gap-1 text-[12px] font-semibold text-[#42596b]"><MapPin size={11} className="text-[#7895a7]" />{school.city || "Goma"}</p>
               </div>
               <div>
-                <p className="text-[8px] font-bold uppercase tracking-[0.07em] text-[#9aa5af]">Date d'inscription</p>
-                <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-[#42596b]"><CalendarDays size={11} className="text-[#7895a7]" />{school.registered || "—"}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-[#5a6b7c]">Date d'inscription</p>
+                <p className="mt-1 flex items-center gap-1 text-[12px] font-semibold text-[#42596b]"><CalendarDays size={11} className="text-[#7895a7]" />{school.registered || "—"}</p>
               </div>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <a href={`tel:${school.phone}`} className="flex items-center gap-2 text-[10px] text-[#55758c] hover:text-[#204e70]"><Phone size={11} />{school.phone || "—"}</a>
-              <a href={`mailto:${school.email}`} className="flex min-w-0 items-center gap-2 truncate text-[10px] text-[#55758c] hover:text-[#204e70]"><Mail size={11} />{school.email || "—"}</a>
+              <a href={`tel:${school.phone}`} className="flex items-center gap-2 text-[12px] text-[#55758c] hover:text-[#204e70]"><Phone size={11} />{school.phone || "—"}</a>
+              <a href={`mailto:${school.email}`} className="flex min-w-0 items-center gap-2 truncate text-[12px] text-[#55758c] hover:text-[#204e70]"><Mail size={11} />{school.email || "—"}</a>
             </div>
           </section>
           <section className="border-b border-[#edf1f4] py-4">
@@ -321,23 +373,23 @@ function DetailDrawer({
             </div>
             <div className="mt-3 space-y-2">
               {statsLoading && (
-                <p className="text-[10px] text-[#8a97a4]">Chargement des documents…</p>
+                <p className="text-[12px] text-[#64748b]">Chargement des documents…</p>
               )}
               {!statsLoading && documents.length === 0 && missingDocs.length === 0 && (
-                <p className="text-[10px] text-[#8a97a4]">Aucun document enregistré.</p>
+                <p className="text-[12px] text-[#64748b]">Aucun document enregistré.</p>
               )}
               {documents.map((doc) => (
-                <div key={doc} className="flex items-center gap-2 text-[10px] text-[#687b89]">
+                <div key={doc} className="flex items-center gap-2 text-[12px] text-[#687b89]">
                   <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#e5f7ef] text-[#379d78]"><Check size={10} /></span>{doc}
                 </div>
               ))}
               {missingDocs.map((doc) => (
-                <div key={doc} className="flex items-center gap-2 text-[10px] font-semibold text-[#c15e66]">
+                <div key={doc} className="flex items-center gap-2 text-[12px] font-semibold text-[#c15e66]">
                   <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#ffe5e5]"><AlertCircle size={10} /></span>{doc}
                 </div>
               ))}
               {stats?.note && (
-                <p className="mt-2 rounded bg-[#f6f9fb] px-2 py-1.5 text-[9px] text-[#7f8d98]">{stats.note}</p>
+                <p className="mt-2 rounded bg-[#f6f9fb] px-2 py-1.5 text-[11px] text-[#7f8d98]">{stats.note}</p>
               )}
             </div>
 
@@ -368,38 +420,38 @@ function DetailDrawer({
               <SubscriptionBadge school={school} />
             </div>
             <div className="mt-3 rounded-md bg-[#f6f9fb] px-3 py-2.5">
-              <p className="text-[9px] text-[#7f8d98]">Plan</p>
-              <p className="mt-1 text-[10px] font-semibold text-[#42596b]">{school.trial}</p>
-              <p className="mt-1 text-[9px] text-[#9aa5ae]">
+              <p className="text-[11px] text-[#7f8d98]">Plan</p>
+              <p className="mt-1 text-[12px] font-semibold text-[#42596b]">{school.trial}</p>
+              <p className="mt-1 text-[11px] text-[#64748b]">
                 Dernier paiement :{" "}
                 <strong className="text-[#557080]">{school.paidAt || "—"}</strong>
               </p>
-              <p className="mt-1.5 text-[9px] text-[#9aa5ae]">
-                Effectif : <strong className="text-[#557080]">{studentsLabel}</strong>
+              <p className="mt-1.5 text-[11px] text-[#64748b]">
+                {effectifLabel} : <strong className="text-[#557080]">{studentsLabel}</strong>
               </p>
             </div>
-            <button onClick={() => { onPaid(); setNotice("Paiement enregistré."); }} className="cursor-pointer mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-[#d6e5e1] bg-[#f4fbf8] py-2 text-[10px] font-bold text-[#378a6d] hover:bg-[#e8f7f1]">
+            <button onClick={() => { onPaid(); setNotice("Paiement enregistré."); }} className="cursor-pointer mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-[#d6e5e1] bg-[#f4fbf8] py-2 text-[12px] font-bold text-[#378a6d] hover:bg-[#e8f7f1]">
               <CircleDollarSign size={13} /> Marquer payé
             </button>
           </section>
           <section className="py-4">
             <div className="flex items-center justify-between">
               <h3 className="text-[11px] font-bold text-[#324b60]">Utilisateurs actifs</h3>
-              <span className="rounded-full bg-[#eef3f7] px-2 py-1 text-[8px] font-bold text-[#698092]">
-                {usersLoading ? "…" : users.length || "0"} comptes
+              <span className="rounded-full bg-[#eef3f7] px-2 py-1 text-[11px] font-bold text-[#698092]">
+                {usersLoading ? "…" : `${users.length} compte${users.length > 1 ? "s" : ""}`}
               </span>
             </div>
             <div className="mt-3 space-y-2">
               {usersLoading && (
-                <p className="text-[10px] text-[#8a97a4]">Chargement des comptes…</p>
+                <p className="text-[12px] text-[#64748b]">Chargement des comptes…</p>
               )}
               {!usersLoading && users.length === 0 && (
-                <p className="text-[10px] text-[#8a97a4]">Aucun compte utilisateur pour cette école.</p>
+                <p className="text-[12px] text-[#64748b]">Aucun compte utilisateur pour cette école.</p>
               )}
               {!usersLoading && users.map((user) => (
                 <div key={`${user.name}-${user.initials}`} className="flex items-center gap-2.5">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e5eef3] text-[9px] font-bold text-[#4a6e84]">{user.initials}</div>
-                  <div className="flex-1"><p className="text-[10px] font-semibold text-[#4c6273]">{user.name}</p><p className="text-[9px] text-[#929da7]">{user.role}</p></div>
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e5eef3] text-[11px] font-bold text-[#4a6e84]">{user.initials}</div>
+                  <div className="flex-1"><p className="text-[12px] font-semibold text-[#4c6273]">{user.name}</p><p className="text-[11px] text-[#64748b]">{user.role}</p></div>
                   <UserRound size={12} className="text-[#9ba8b2]" />
                 </div>
               ))}
@@ -411,7 +463,7 @@ function DetailDrawer({
             <button
               onClick={() => { void onImpersonate?.(); }}
               disabled={impersonating}
-              className="cursor-pointer flex w-full items-center justify-center gap-2 rounded-md border border-[#d0e0f0] bg-[#f4f8fc] py-2.5 text-[10px] font-bold text-[#3a6f9a] hover:bg-[#eaf2f9] disabled:opacity-60"
+              className="cursor-pointer flex w-full items-center justify-center gap-2 rounded-md border border-[#d0e0f0] bg-[#f4f8fc] py-2.5 text-[12px] font-bold text-[#3a6f9a] hover:bg-[#eaf2f9] disabled:opacity-60"
             >
               {impersonating ? <Loader2 size={13} className="animate-spin" /> : <LogIn size={13} />}
               Se connecter en tant que cette école
@@ -423,7 +475,7 @@ function DetailDrawer({
                 onReactivate();
                 setNotice("L'école a été réactivée. Les accès sont de nouveau ouverts.");
               }}
-              className="cursor-pointer flex w-full items-center justify-center gap-2 rounded-md border border-[#cde9dc] bg-[#f4fbf8] py-2.5 text-[10px] font-bold text-[#378a6d] hover:bg-[#e8f7f1]"
+              className="cursor-pointer flex w-full items-center justify-center gap-2 rounded-md border border-[#cde9dc] bg-[#f4fbf8] py-2.5 text-[12px] font-bold text-[#378a6d] hover:bg-[#e8f7f1]"
             >
               <CheckCircle2 size={13} /> Réactiver
             </button>
@@ -433,7 +485,7 @@ function DetailDrawer({
                 onSuspend();
                 setNotice("L'école a été suspendue. Les accès sont maintenant bloqués.");
               }}
-              className="cursor-pointer flex w-full items-center justify-center gap-2 rounded-md border border-[#f0cdd0] py-2.5 text-[10px] font-bold text-[#c25e67] hover:bg-[#fff5f5]"
+              className="cursor-pointer flex w-full items-center justify-center gap-2 rounded-md border border-[#f0cdd0] py-2.5 text-[12px] font-bold text-[#c25e67] hover:bg-[#fff5f5]"
             >
               <Ban size={13} /> Suspendre
             </button>
@@ -455,6 +507,7 @@ export default function SchoolsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [postValidationSchool, setPostValidationSchool] = useState<School | null>(null);
+  const [postValidationAccess, setPostValidationAccess] = useState<ValidateAccessResult | null>(null);
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -482,6 +535,14 @@ export default function SchoolsPage() {
   };
 
   const share = (n: number) => `${counts.all ? Math.round((n / counts.all) * 100) : 0} %`;
+
+  // KPI cliquables : un clic applique le filtre correspondant, un second clic l'enlève (toggle).
+  const toggleFilter = (key: string, value: string) =>
+    setQuery((prev) => ({
+      ...prev,
+      filters: { ...prev.filters, [key]: prev.filters[key] === value ? "all" : value },
+      page: 1,
+    }));
 
   const loadSchools = useCallback(async (cancelled?: { value: boolean }) => {
     try {
@@ -644,7 +705,7 @@ export default function SchoolsPage() {
     });
 
     try {
-      await tenantsApi.validate(school.id, { validatedBy: "Super Admin" });
+      const access = await tenantsApi.validate(school.id, { validatedBy: "Super Admin" });
       setPostValidationSchool({
         ...school,
         validation: "Validé",
@@ -652,6 +713,7 @@ export default function SchoolsPage() {
         subscription: "Actif",
         subscriptionTone: "green",
       });
+      setPostValidationAccess(access);
       reload();
     } catch (err: unknown) {
       setSchools(prevSchools);
@@ -669,12 +731,12 @@ export default function SchoolsPage() {
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-extrabold tracking-[-0.04em] text-[#172f45]">Écoles</h1>
-          <p className="mt-1 text-[12px] text-[#778894]">Gestion des écoles de Goma</p>
+          <p className="mt-1 text-[12px] text-[#64748b]">Gestion des écoles de Goma</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setIsRegisterOpen(true)}
-            className="cursor-pointer flex h-8 items-center gap-1.5 rounded-md bg-[#102d48] px-3 text-[10px] font-bold text-white shadow-sm hover:bg-[#193d5e] active:scale-[0.98] transition-all"
+            className="cursor-pointer flex h-8 items-center gap-1.5 rounded-md bg-[#102d48] px-3 text-[12px] font-bold text-white shadow-sm hover:bg-[#193d5e] active:scale-[0.98] transition-all"
           >
             <Plus size={13} /> Inscrire une école
           </button>
@@ -682,14 +744,16 @@ export default function SchoolsPage() {
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Écoles validées" value={String(counts.active)} icon={Building2} detail={<><span>Part du parc</span><strong className="text-[#42586a]">{share(counts.active)}</strong></>} />
-        <StatCard label="En attente de validation" value={String(counts.pending)} icon={FileCheck2} accent="orange" detail={<><span className="text-[#c67b44]">À traiter</span><strong className="text-[#42586a]">{share(counts.pending)}</strong></>} />
-        <StatCard label="Essai gratuit en cours" value={String(counts.trial)} icon={CalendarDays} accent="blue" detail={<><span>Part du parc</span><strong className="text-[#42586a]">{share(counts.trial)}</strong></>} />
+        <StatCard label="Écoles validées" value={String(counts.active)} icon={Building2} onClick={() => toggleFilter("status", "active")} active={query.filters.status === "active"} detail={<><span>Part du parc</span><strong className="text-[#42586a]">{share(counts.active)}</strong></>} />
+        <StatCard label="En attente de validation" value={String(counts.pending)} icon={FileCheck2} accent="orange" onClick={() => toggleFilter("status", "pending")} active={query.filters.status === "pending"} detail={<><span className="text-[#c67b44]">À traiter</span><strong className="text-[#42586a]">{share(counts.pending)}</strong></>} />
+        <StatCard label="Essai gratuit en cours" value={String(counts.trial)} icon={CalendarDays} accent="blue" onClick={() => toggleFilter("subscription", "trial")} active={query.filters.subscription === "trial"} detail={<><span>Part du parc</span><strong className="text-[#42586a]">{share(counts.trial)}</strong></>} />
         <StatCard
           label="Abonnement en retard"
           value={String(counts.overdue)}
           icon={AlertCircle}
           accent="orange"
+          onClick={() => toggleFilter("subscription", "overdue")}
+          active={query.filters.subscription === "overdue"}
           detail={
             <>
               <span className="text-[#c45d66]">Action requise</span>
@@ -737,18 +801,18 @@ export default function SchoolsPage() {
             case "name":
               return (
                 <>
-                  <p className="max-w-[185px] text-[10px] font-bold leading-[1.35] text-[#344a5f]">{school.name}</p>
-                  <p className="mt-1 text-[9px] font-medium text-[#64788a]" title={school.id}>{shortId(school.id)}</p>
+                  <p className="max-w-[185px] text-[12px] font-bold leading-[1.35] text-[#344a5f]">{school.name}</p>
+                  <p className="mt-1 text-[11px] font-medium text-[#64788a]" title={school.id}>{shortId(school.id)}</p>
                 </>
               );
             case "city":
-              return <p className="text-[9px] font-semibold text-[#607483]">{school.city || "Goma"}</p>;
+              return <p className="text-[11px] font-semibold text-[#607483]">{school.city || "Goma"}</p>;
             case "validation":
               return <ValidationBadge school={school} />;
             case "subscription":
               return <SubscriptionBadge school={school} />;
             case "registered":
-              return <span className="text-[9px] text-[#71818e]">{school.registered || "—"}</span>;
+              return <span className="text-[11px] text-[#64748b]">{school.registered || "—"}</span>;
             case "actions":
               return (
                 <button
@@ -791,7 +855,11 @@ export default function SchoolsPage() {
       <PostValidationModal
         isOpen={!!postValidationSchool}
         school={postValidationSchool}
-        onClose={() => setPostValidationSchool(null)}
+        access={postValidationAccess}
+        onClose={() => {
+          setPostValidationSchool(null);
+          setPostValidationAccess(null);
+        }}
       />
     </>
   );

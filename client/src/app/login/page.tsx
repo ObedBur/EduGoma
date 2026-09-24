@@ -29,7 +29,7 @@ const SLIDE_DURATION = 5000; // 5 secondes par image
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -49,7 +49,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login(email, password, rememberMe);
+      await login(identifier, password, rememberMe);
       toast.success("Connexion réussie", { description: "Bienvenue sur EduGoma." });
       router.push("/dashboard");
     } catch (err: any) {
@@ -162,19 +162,20 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* Email Field */}
+            {/* Email or phone */}
             <div className="space-y-1.5">
-              <label htmlFor="email" className="block text-sm font-semibold text-slate-700">
-                Votre Email
+              <label htmlFor="identifier" className="block text-sm font-semibold text-slate-700">
+                Email ou téléphone
               </label>
               <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="identifier"
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
+                autoComplete="username"
                 className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-all text-[15px]"
-                placeholder="nom@exemple.com"
+                placeholder="nom@exemple.com ou +243…"
               />
             </div>
 

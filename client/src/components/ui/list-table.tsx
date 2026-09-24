@@ -28,7 +28,7 @@
  */
 
 import * as React from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type SortOrder = "asc" | "desc";
@@ -196,6 +196,23 @@ export function ListTable<T>({
   const handlePage = (page: number) =>
     onQueryChange({ ...query, page: Math.min(Math.max(1, page), totalPages) });
 
+  // Filtres actifs (hors « all »/vide) → chips + bouton de réinitialisation.
+  const activeFilters = filters
+    .map((f) => {
+      const value = query.filters[f.key];
+      if (!value || value === "all" || value === "") return null;
+      const optionLabel = f.options.find((o) => o.value === value)?.label ?? value;
+      return { key: f.key, label: f.label, value, optionLabel };
+    })
+    .filter((x): x is { key: string; label: string; value: string; optionLabel: string } => x !== null);
+  const hasSearch = query.search.trim().length > 0;
+  const hasActive = activeFilters.length > 0 || hasSearch;
+  const resetFilters = () => {
+    const cleared: Record<string, string> = {};
+    for (const f of filters) cleared[f.key] = "all";
+    onQueryChange({ ...query, filters: cleared, search: "", page: 1 });
+  };
+
   return (
     <section
       className={cn(
@@ -208,12 +225,12 @@ export function ListTable<T>({
           {title && (
             <h2 className="flex items-center gap-2 text-[12px] font-bold text-[#23394e]">
               {title}
-              <span className="rounded-full bg-[#eef3f7] px-2 py-0.5 text-[9px] font-bold text-[#698092]">
+              <span className="rounded-full bg-[#eef3f7] px-2 py-0.5 text-[11px] font-bold text-[#698092]">
                 {total} résultat{total > 1 ? "s" : ""}
               </span>
             </h2>
           )}
-          {subtitle && <p className="mt-1 text-[9px] text-[#8a97a4]">{subtitle}</p>}
+          {subtitle && <p className="mt-1 text-[11px] text-[#64748b]">{subtitle}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {actions}
@@ -222,7 +239,7 @@ export function ListTable<T>({
             <input
               value={query.search}
               onChange={(e) => handleSearch(e.target.value)}
-              className="h-8 w-full rounded-md border border-[#e0e7ee] bg-[#f8fafc] pl-9 pr-3 text-[10px] text-[#33485c] outline-none placeholder:text-[#9aa6b4] focus:border-[#76a8cd]"
+              className="h-8 w-full rounded-md border border-[#e0e7ee] bg-[#f8fafc] pl-9 pr-3 text-[12px] text-[#33485c] outline-none placeholder:text-[#9aa6b4] focus:border-[#76a8cd]"
               placeholder={searchPlaceholder}
               aria-label={searchPlaceholder}
             />
@@ -234,13 +251,13 @@ export function ListTable<T>({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[#edf1f4] px-4 py-2.5">
           {filters.map((filter) => (
             <label key={filter.key} className="flex items-center gap-1.5">
-              <span className="text-[9px] font-bold uppercase tracking-[0.05em] text-[#9aa5af]">
+              <span className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#5a6b7c]">
                 {filter.label}
               </span>
               <select
                 value={query.filters[filter.key] || "all"}
                 onChange={(e) => handleFilter(filter.key, e.target.value)}
-                className="h-7 max-w-[160px] rounded-md border border-[#e0e7ee] bg-white px-2 text-[9px] font-semibold text-[#536b7d] outline-none focus:border-[#76a8cd]"
+                className="h-7 max-w-[160px] rounded-md border border-[#e0e7ee] bg-white px-2 text-[11px] font-semibold text-[#536b7d] outline-none focus:border-[#76a8cd]"
                 aria-label={`Filtrer par ${filter.label}`}
               >
                 {filter.options.map((opt) => (
@@ -254,21 +271,72 @@ export function ListTable<T>({
         </div>
       )}
 
-      <div className="overflow-x-auto overscroll-x-contain scrollbar-thin">
-        <p className="block md:hidden border-b border-[#edf1f4] py-1.5 text-center text-[9px] text-[#9aa5b1]">
+      {hasActive && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#edf1f4] bg-[#fbfdff] px-4 py-2">
+          <span className="text-[11px] font-semibold text-[#5a6b7c]">Filtres actifs :</span>
+          {hasSearch && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-[#cfe0ee] bg-[#eef5fb] py-0.5 pl-2.5 pr-1 text-[11px] font-semibold text-[#2f6f9f]">
+              Recherche : « {query.search.trim()} »
+              <button
+                type="button"
+                onClick={() => handleSearch("")}
+                className="cursor-pointer rounded-full p-0.5 hover:bg-[#dbe9f5]"
+                aria-label="Effacer la recherche"
+              >
+                <X size={11} />
+              </button>
+            </span>
+          )}
+          {activeFilters.map((f) => (
+            <span
+              key={f.key}
+              className="inline-flex items-center gap-1 rounded-full border border-[#dfe6ec] bg-white py-0.5 pl-2.5 pr-1 text-[11px] font-semibold text-[#536b7d]"
+            >
+              {f.label} : {f.optionLabel}
+              <button
+                type="button"
+                onClick={() => handleFilter(f.key, "all")}
+                className="cursor-pointer rounded-full p-0.5 hover:bg-[#eef2f5]"
+                aria-label={`Retirer le filtre ${f.label}`}
+              >
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="cursor-pointer ml-auto text-[11px] font-bold text-[#2f6f9f] hover:underline"
+          >
+            Réinitialiser
+          </button>
+        </div>
+      )}
+
+      <div className="max-h-[70vh] overflow-auto overscroll-contain scrollbar-thin">
+        <p className="block md:hidden border-b border-[#edf1f4] py-1.5 text-center text-[11px] text-[#64748b]">
           ← Défilez pour voir tout →
         </p>
         <table className="w-full min-w-[780px] border-collapse text-left">
           <thead>
-            <tr className="bg-[#f8fafc] text-[8px] font-bold uppercase tracking-[0.06em] text-[#83909c]">
+            <tr className="bg-[#f8fafc] text-[11px] font-bold uppercase tracking-[0.06em] text-[#5a6b7c]">
               {columns.map((col) => {
                 const sortKey = col.sortKey ?? col.key;
                 const active = query.sort === sortKey;
                 return (
                   <th
                     key={col.key}
+                    aria-sort={
+                      col.sortable
+                        ? active
+                          ? query.order === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : "none"
+                        : undefined
+                    }
                     className={cn(
-                      "px-3 py-2.5 first:pl-4",
+                      "sticky top-0 z-10 bg-[#f8fafc] px-3 py-2.5 first:pl-4 shadow-[inset_0_-1px_0_#e4eaf0]",
                       col.align === "right" && "text-right",
                       col.align === "center" && "text-center",
                       col.className,
@@ -305,7 +373,7 @@ export function ListTable<T>({
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-[11px] text-[#8a97a4]">
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-[11px] text-[#64748b]">
                   Chargement…
                 </td>
               </tr>
@@ -324,9 +392,21 @@ export function ListTable<T>({
                 <tr
                   key={keyExtractor(row)}
                   onClick={() => onRowClick?.(row)}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  onKeyDown={
+                    onRowClick
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onRowClick(row);
+                          }
+                        }
+                      : undefined
+                  }
                   className={cn(
                     "border-t border-[#edf1f4] align-middle",
-                    onRowClick && "cursor-pointer hover:bg-[#fbfdff]",
+                    onRowClick &&
+                      "cursor-pointer hover:bg-[#fbfdff] focus-visible:bg-[#fbfdff] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#76a8cd]",
                   )}
                 >
                   {columns.map((col) => (
@@ -349,7 +429,7 @@ export function ListTable<T>({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#edf1f4] px-4 py-2.5">
-        <div className="flex flex-wrap items-center gap-3 text-[9px] text-[#8d99a4]">
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#64748b]">
           <span>
             {from}–{to} sur {total}
           </span>
@@ -358,10 +438,10 @@ export function ListTable<T>({
             <select
               value={query.limit}
               onChange={(e) => update({ limit: Number(e.target.value), page: 1 })}
-              className="h-7 rounded border border-[#e0e7ee] bg-white px-1.5 text-[9px] font-semibold text-[#536b7d] outline-none focus:border-[#76a8cd]"
+              className="h-7 rounded border border-[#e0e7ee] bg-white px-1.5 text-[11px] font-semibold text-[#536b7d] outline-none focus:border-[#76a8cd]"
               aria-label="Éléments par page"
             >
-              {[10, 20, 50].map((n) => (
+              {[10, 20, 30, 50].map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
@@ -375,19 +455,19 @@ export function ListTable<T>({
             type="button"
             onClick={() => handlePage(query.page - 1)}
             disabled={query.page <= 1 || loading}
-            className="flex h-7 items-center gap-1 rounded border border-[#e0e7ee] px-2 text-[9px] font-bold text-[#536b7d] hover:bg-[#f3f6f8] disabled:opacity-40"
+            className="flex h-7 items-center gap-1 rounded border border-[#e0e7ee] px-2 text-[11px] font-bold text-[#536b7d] hover:bg-[#f3f6f8] disabled:opacity-40"
             aria-label="Page précédente"
           >
             <ChevronLeft size={12} /> Préc.
           </button>
-          <span className="px-2 text-[9px] font-semibold text-[#536b7d]">
+          <span className="px-2 text-[11px] font-semibold text-[#536b7d]">
             {query.page} / {totalPages}
           </span>
           <button
             type="button"
             onClick={() => handlePage(query.page + 1)}
             disabled={query.page >= totalPages || loading}
-            className="flex h-7 items-center gap-1 rounded border border-[#e0e7ee] px-2 text-[9px] font-bold text-[#536b7d] hover:bg-[#f3f6f8] disabled:opacity-40"
+            className="flex h-7 items-center gap-1 rounded border border-[#e0e7ee] px-2 text-[11px] font-bold text-[#536b7d] hover:bg-[#f3f6f8] disabled:opacity-40"
             aria-label="Page suivante"
           >
             Suiv. <ChevronRight size={12} />

@@ -102,7 +102,9 @@ test-*.ts
 # Tool configs (not project code)
 .agents/
 .codex/
+.claude/
 skills-lock.json
+server/opencode-prompt.md
 
 # Personal / scratch folders
 Add/

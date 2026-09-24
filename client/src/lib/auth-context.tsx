@@ -16,7 +16,7 @@ interface AuthContextType {
   isLoading: boolean;
   /** Impersonation target (plan #3) — null if not impersonating */
   impersonating: { id: string; name: string } | null;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (identifier: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (data: {
     email?: string;
     phone?: string;
@@ -91,8 +91,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = async (email: string, password: string, rememberMe?: boolean) => {
-    const res = await authApi.login({ email, password, rememberMe });
+  const login = async (identifier: string, password: string, rememberMe?: boolean) => {
+    const trimmed = identifier.trim();
+    const looksLikePhone =
+      /^\+?\d[\d\s().-]{6,}$/.test(trimmed) && !trimmed.includes("@");
+    const res = await authApi.login(
+      looksLikePhone
+        ? { phone: trimmed.replace(/\s/g, ""), password, rememberMe }
+        : { email: trimmed, password, rememberMe },
+    );
     setAuth(res.accessToken, res.user);
   };
 
